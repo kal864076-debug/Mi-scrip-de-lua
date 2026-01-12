@@ -1,0 +1,93 @@
+--// Variables base
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- Control del sistema
+lagOn = false
+
+-- 🔒 Protección de herramientas
+local function keepToolsEquipped()
+    task.spawn(function()
+        while lagOn do
+            local currentCharacter = player.Character
+            if currentCharacter then
+                local backpack = player:FindFirstChild("Backpack")
+
+                local toolsToEquip = {
+                    "Slap","Iron Slap","Gold Slap","Diamond Slap","Emerald Slap",
+                    "Ruby Slap","Dark Matter Slap","Flame Slap","Galaxy Slap",
+                    "Glitched Slap","Splatter Slap","Paintball Gun","Radioactive Slap",
+                    "Nuclear Slap","Slap Rubi","Gold slap","Emerald Slap",
+                    "Quantum Cloner","Lase Cape","Invisibility Cloak","All Seeing Sentry",
+                    "Rainbowrath Sword","Body Swap Potion","Bat","Medusa's Head",
+                    "Flying Carpet","Candy Slap","Gummy Bear","SubSpace Mine",
+                    "Microphone","Hive","Speed Coil","Gravity Coil","Coil Combo",
+                    "Trap","Bee Launcher","Rage Table","Grapple Gun","Taser",
+                    "Boogie Bomb","Web Slinger","Teleportation Potion","Jetpack",
+                    "Energy Drink","Shield","Hammer","Sword","Bow","Crossbow"
+                }
+
+                for _, toolName in ipairs(toolsToEquip) do
+                    local hasTool = currentCharacter:FindFirstChild(toolName)
+                    local toolInBackpack = backpack and backpack:FindFirstChild(toolName)
+
+                    if not hasTool and toolInBackpack then
+                        toolInBackpack.Parent = currentCharacter
+                    end
+                end
+            end
+            task.wait(0.4)
+        end
+    end)
+end
+
+--// UI
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "SK_CUMUNITY"
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0,300,0,200)
+Main.Position = UDim2.new(0.5,-150,0.5,-100)
+Main.BackgroundColor3 = Color3.fromRGB(15,15,15)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+
+local UICorner = Instance.new("UICorner", Main)
+UICorner.CornerRadius = UDim.new(0,12)
+
+-- Título
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1,0,0,40)
+Title.BackgroundTransparency = 1
+Title.Text = "🔥 SK CUMUNITY"
+Title.TextColor3 = Color3.fromRGB(255,60,60)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 22
+
+-- Botón SK 🔥
+local Button = Instance.new("TextButton", Main)
+Button.Size = UDim2.new(0.8,0,0,50)
+Button.Position = UDim2.new(0.1,0,0.45,0)
+Button.BackgroundColor3 = Color3.fromRGB(255,50,50)
+Button.Text = "SK 🔥  OFF"
+Button.TextColor3 = Color3.new(1,1,1)
+Button.Font = Enum.Font.GothamBold
+Button.TextSize = 20
+
+local BtnCorner = Instance.new("UICorner", Button)
+BtnCorner.CornerRadius = UDim.new(0,10)
+
+-- Función del botón
+Button.MouseButton1Click:Connect(function()
+    lagOn = not lagOn
+
+    if lagOn then
+        Button.Text = "SK 🔥  ON"
+        Button.BackgroundColor3 = Color3.fromRGB(0,200,120)
+        keepToolsEquipped()
+    else
+        Button.Text = "SK 🔥  OFF"
+        Button.BackgroundColor3 = Color3.fromRGB(255,50,50)
+    end
+end)
