@@ -1,0 +1,607 @@
+--[[
+    ⚡ XZ SISTEMA TP - v5.0 (Edición XZ OMEGA)
+    Carga especial de 6 segundos + 💫 + Dual TP
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- === TEMA ===
+local THEME = {
+	BgPrimary   = Color3.fromRGB(8, 10, 16),
+	BgSecondary = Color3.fromRGB(14, 18, 28),
+	Header      = Color3.fromRGB(16, 22, 34),
+	Accent      = Color3.fromRGB(0, 255, 170),
+	Accent2     = Color3.fromRGB(0, 200, 255),
+	Success     = Color3.fromRGB(34, 197, 94),
+	Warning     = Color3.fromRGB(250, 204, 21),
+	Error       = Color3.fromRGB(239, 68, 68),
+	TextMain    = Color3.fromRGB(240, 250, 255),
+	TextSub     = Color3.fromRGB(140, 160, 180)
+}
+
+-- === ESTADO ===
+local pos1 = nil
+local pos2 = nil
+local bucle1 = false
+local bucle2 = false
+local hilo1 = nil
+local hilo2 = nil
+local panelAbierto = false
+local marcador = nil
+local rotacion = nil
+
+-- === GUI ===
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_SistemaTP_V5"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- === UTILIDADES ===
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+local function notificar(titulo, msg, tipo)
+	local color = THEME.Accent
+	local icon = "⚙️"
+	if tipo == "success" then color = THEME.Success; icon = "✅"
+	elseif tipo == "error" then color = THEME.Error; icon = "❌"
+	elseif tipo == "warning" then color = THEME.Warning; icon = "⚠️"
+	elseif tipo == "tp" then color = THEME.Accent2; icon = "📍"
+	end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 250, 0, 48)
+	toast.Position = UDim2.new(1, 20, 0.82, 0)
+	toast.BackgroundColor3 = THEME.BgSecondary
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 10)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.5
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -14, 0, 18)
+	t1.Position = UDim2.new(0, 10, 0, 5)
+	t1.BackgroundTransparency = 1
+	t1.Text = icon .. "  " .. string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.GothamBold
+	t1.TextSize = 11
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -14, 0, 18)
+	t2.Position = UDim2.new(0, 10, 0, 24)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 11
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.35, {Position = UDim2.new(1, -270, 0.82, 0)}, Enum.EasingStyle.Back)
+	task.delay(2.6, function()
+		local out = tween(toast, 0.3, {Position = UDim2.new(1, 20, 0.82, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function quitarMarcador()
+	if rotacion then rotacion:Disconnect() rotacion = nil end
+	if marcador then marcador:Destroy() marcador = nil end
+end
+
+local function crearMarcador(cf, color)
+	quitarMarcador()
+	local model = Instance.new("Model")
+	model.Name = "XZ_TP_Marker"
+
+	local part = Instance.new("Part")
+	part.Size = Vector3.new(1.5, 1.5, 1.5)
+	part.CFrame = cf * CFrame.new(0, 2.5, 0)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Material = Enum.Material.Neon
+	part.Color = color
+	part.Transparency = 0.2
+	part.Parent = model
+
+	local mesh = Instance.new("SpecialMesh", part)
+	mesh.MeshType = Enum.MeshType.FileMesh
+	mesh.MeshId = "rbxassetid://10337144"
+	mesh.Scale = Vector3.new(1.2, 2.0, 1.2)
+
+	local ground = Instance.new("Part")
+	ground.Size = Vector3.new(0.6, 0.1, 0.6)
+	ground.CFrame = cf
+	ground.Anchored = true
+	ground.Transparency = 1
+	ground.CanCollide = false
+	ground.Parent = model
+
+	local a0 = Instance.new("Attachment", part)
+	local a1 = Instance.new("Attachment", ground)
+
+	local beam = Instance.new("Beam", part)
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.Color = ColorSequence.new(color, THEME.Accent2)
+	beam.Width0 = 0.9
+	beam.Width1 = 0.07
+	beam.FaceCamera = true
+
+	local hl = Instance.new("Highlight", model)
+	hl.FillColor = color
+	hl.OutlineColor = Color3.new(1,1,1)
+	hl.FillTransparency = 0.5
+
+	model.Parent = Workspace
+	marcador = model
+
+	local ang = 0
+	rotacion = RunService.RenderStepped:Connect(function(dt)
+		if part and part.Parent then
+			ang = ang + dt * 75
+			part.CFrame = (cf * CFrame.new(0, 2.5 + math.sin(os.clock()*2.5)*0.28, 0)) * CFrame.Angles(0, math.rad(ang), 0)
+		end
+	end)
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+-- ======================================================
+--  ANIMACIÓN DE CARGA (6 SEGUNDOS)
+-- ======================================================
+local carga = Instance.new("Frame")
+carga.Size = UDim2.new(1, 0, 1, 0)
+carga.BackgroundColor3 = Color3.fromRGB(5, 7, 12)
+carga.BorderSizePixel = 0
+carga.Parent = screenGui
+
+local caja = Instance.new("Frame", carga)
+caja.Size = UDim2.new(0, 340, 0, 180)
+caja.Position = UDim2.new(0.5, -170, 0.5, -90)
+caja.BackgroundColor3 = THEME.BgPrimary
+caja.BorderSizePixel = 0
+Instance.new("UICorner", caja).CornerRadius = UDim.new(0, 14)
+
+local strokeCaja = Instance.new("UIStroke", caja)
+strokeCaja.Color = THEME.Accent
+strokeCaja.Thickness = 1.8
+
+local tituloCarga = Instance.new("TextLabel", caja)
+tituloCarga.Size = UDim2.new(1, -20, 0, 30)
+tituloCarga.Position = UDim2.new(0, 10, 0.12, 0)
+tituloCarga.BackgroundTransparency = 1
+tituloCarga.Text = "💫 CREADOR XZ OMEGA"
+tituloCarga.TextColor3 = THEME.Accent
+tituloCarga.Font = Enum.Font.GothamBold
+tituloCarga.TextSize = 18
+
+local textoCarga = Instance.new("TextLabel", caja)
+textoCarga.Size = UDim2.new(1, -20, 0, 25)
+textoCarga.Position = UDim2.new(0, 10, 0.38, 0)
+textoCarga.BackgroundTransparency = 1
+textoCarga.Text = "Iniciando sesión al sistema TP..."
+textoCarga.TextColor3 = THEME.TextMain
+textoCarga.Font = Enum.Font.GothamMedium
+textoCarga.TextSize = 14
+
+local bgBarra = Instance.new("Frame", caja)
+bgBarra.Size = UDim2.new(0.8, 0, 0, 7)
+bgBarra.Position = UDim2.new(0.1, 0, 0.68, 0)
+bgBarra.BackgroundColor3 = Color3.fromRGB(25, 30, 42)
+bgBarra.BorderSizePixel = 0
+Instance.new("UICorner", bgBarra).CornerRadius = UDim.new(1, 0)
+
+local fillBarra = Instance.new("Frame", bgBarra)
+fillBarra.Size = UDim2.new(0, 0, 1, 0)
+fillBarra.BackgroundColor3 = THEME.Accent
+fillBarra.BorderSizePixel = 0
+Instance.new("UICorner", fillBarra).CornerRadius = UDim.new(1, 0)
+
+-- Elemento final animado (💫)
+local destelloFinal = Instance.new("TextLabel", carga)
+destelloFinal.Size = UDim2.new(0, 120, 0, 120)
+destelloFinal.Position = UDim2.new(0.5, -60, 0.5, -60)
+destelloFinal.BackgroundTransparency = 1
+destelloFinal.Text = "💫"
+destelloFinal.TextSize = 80
+destelloFinal.Visible = false
+destelloFinal.TextTransparency = 1
+
+-- ======================================================
+--  BOTÓN FLOTANTE
+-- ======================================================
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 130, 0, 42)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = Color3.fromRGB(12, 18, 28)
+btnAbrir.Text = "💫  ENTRAR"
+btnAbrir.TextColor3 = THEME.Accent
+btnAbrir.Font = Enum.Font.GothamBold
+btnAbrir.TextSize = 14
+btnAbrir.Visible = false
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 10)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent
+strokeBtn.Thickness = 1.6
+hover(btnAbrir, Color3.fromRGB(12, 18, 28), Color3.fromRGB(20, 32, 48))
+
+-- ======================================================
+--  PANEL PRINCIPAL
+-- ======================================================
+local panel = Instance.new("Frame")
+panel.Size = UDim2.new(0, 300, 0, 0)
+panel.Position = UDim2.new(0.5, -150, 0.5, -160)
+panel.BackgroundColor3 = THEME.BgPrimary
+panel.BorderSizePixel = 0
+panel.ClipsDescendants = true
+panel.Visible = false
+panel.Active = true
+panel.Draggable = true
+panel.Parent = screenGui
+Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+
+local strokePanel = Instance.new("UIStroke", panel)
+strokePanel.Color = THEME.Accent
+strokePanel.Thickness = 1.6
+
+local header = Instance.new("Frame", panel)
+header.Size = UDim2.new(1, 0, 0, 42)
+header.BackgroundColor3 = THEME.Header
+header.BorderSizePixel = 0
+
+local titulo = Instance.new("TextLabel", header)
+titulo.Size = UDim2.new(1, -45, 1, 0)
+titulo.Position = UDim2.new(0, 12, 0, 0)
+titulo.BackgroundTransparency = 1
+titulo.Text = "💫  SISTEMA TP - XZ OMEGA"
+titulo.TextColor3 = THEME.TextMain
+titulo.Font = Enum.Font.GothamBold
+titulo.TextSize = 13
+titulo.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", header)
+btnCerrar.Size = UDim2.new(0, 26, 0, 26)
+btnCerrar.Position = UDim2.new(1, -34, 0.5, -13)
+btnCerrar.BackgroundColor3 = Color3.fromRGB(30, 40, 55)
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextMain
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 12
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 6)
+hover(btnCerrar, Color3.fromRGB(30, 40, 55), THEME.Error)
+
+local lista = Instance.new("Frame", panel)
+lista.Size = UDim2.new(1, -20, 0, 0)
+lista.Position = UDim2.new(0, 10, 0, 50)
+lista.BackgroundTransparency = 1
+
+local layout = Instance.new("UIListLayout", lista)
+layout.Padding = UDim.new(0, 7)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function crearSeccion(txt, order)
+	local f = Instance.new("TextLabel")
+	f.Size = UDim2.new(1, 0, 0, 18)
+	f.BackgroundTransparency = 1
+	f.Text = txt
+	f.TextColor3 = THEME.Accent
+	f.Font = Enum.Font.GothamBold
+	f.TextSize = 11
+	f.TextXAlignment = Enum.TextXAlignment.Left
+	f.LayoutOrder = order
+	return f
+end
+
+local function crearOpcion(txt, order)
+	local fila = Instance.new("Frame")
+	fila.Size = UDim2.new(1, 0, 0, 40)
+	fila.BackgroundColor3 = THEME.BgSecondary
+	fila.LayoutOrder = order
+	Instance.new("UICorner", fila).CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke", fila)
+	stroke.Color = THEME.Accent
+	stroke.Thickness = 1
+	stroke.Transparency = 0.7
+
+	local label = Instance.new("TextLabel", fila)
+	label.Size = UDim2.new(1, -70, 1, 0)
+	label.Position = UDim2.new(0, 12, 0, 0)
+	label.BackgroundTransparency = 1
+	label.Text = txt
+	label.TextColor3 = THEME.TextMain
+	label.Font = Enum.Font.GothamMedium
+	label.TextSize = 12
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local btn = Instance.new("TextButton", fila)
+	btn.Size = UDim2.new(0, 52, 0, 26)
+	btn.Position = UDim2.new(1, -60, 0.5, -13)
+	btn.BackgroundColor3 = Color3.fromRGB(30, 40, 55)
+	btn.Text = "OFF"
+	btn.TextColor3 = THEME.TextSub
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 10
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	hover(btn, Color3.fromRGB(30, 40, 55), Color3.fromRGB(40, 55, 75))
+
+	return fila, btn
+end
+
+local function crearIntervalo(order)
+	local f = Instance.new("Frame")
+	f.Size = UDim2.new(1, 0, 0, 36)
+	f.BackgroundColor3 = Color3.fromRGB(12, 16, 24)
+	f.LayoutOrder = order
+	f.Visible = false
+	Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
+
+	local lbl = Instance.new("TextLabel", f)
+	lbl.Size = UDim2.new(0, 140, 1, 0)
+	lbl.Position = UDim2.new(0, 12, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "Intervalo (seg):"
+	lbl.TextColor3 = THEME.TextSub
+	lbl.Font = Enum.Font.Gotham
+	lbl.TextSize = 11
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	local box = Instance.new("TextBox", f)
+	box.Size = UDim2.new(0, 50, 0, 24)
+	box.Position = UDim2.new(1, -58, 0.5, -12)
+	box.BackgroundColor3 = Color3.fromRGB(22, 30, 42)
+	box.Text = "1.0"
+	box.TextColor3 = THEME.Accent
+	box.Font = Enum.Font.GothamBold
+	box.TextSize = 12
+	box.ClearTextOnFocus = false
+	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+
+	box:GetPropertyChangedSignal("Text"):Connect(function()
+		box.Text = box.Text:gsub("[^%d%.]", "")
+	end)
+
+	return f, box
+end
+
+-- === SISTEMA TP 1 ===
+local sec1 = crearSeccion("▸ TP 1", 1)
+sec1.Parent = lista
+
+local fG1, btnG1 = crearOpcion("Guardar TP", 2)
+fG1.Parent = lista
+btnG1.Text = "SET"
+
+local fB1, btnB1 = crearOpcion("Auto TP", 3)
+fB1.Parent = lista
+
+local fI1, input1 = crearIntervalo(4)
+fI1.Parent = lista
+
+-- === SISTEMA TP 2 ===
+local sec2 = crearSeccion("▸ TP 2", 5)
+sec2.Parent = lista
+
+local fG2, btnG2 = crearOpcion("Guardar TP", 6)
+fG2.Parent = lista
+btnG2.Text = "SET"
+
+local fB2, btnB2 = crearOpcion("Auto TP", 7)
+fB2.Parent = lista
+
+local fI2, input2 = crearIntervalo(8)
+fI2.Parent = lista
+
+local function reajustar()
+	local h = 58 + layout.AbsoluteContentSize.Y
+	if panelAbierto then
+		tween(panel, 0.25, {Size = UDim2.new(0, 300, 0, h)})
+	end
+end
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(reajustar)
+
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	local h = 58 + layout.AbsoluteContentSize.Y
+	if panelAbierto then
+		panel.Visible = true
+		tween(panel, 0.35, {Size = UDim2.new(0, 300, 0, h)}, Enum.EasingStyle.Back)
+	else
+		local a = tween(panel, 0.25, {Size = UDim2.new(0, 300, 0, 0)}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function()
+			if not panelAbierto then panel.Visible = false end
+		end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+
+-- === LÓGICA ===
+local function getRoot()
+	local c = LocalPlayer.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+-- Guardar TP 1
+btnG1.MouseButton1Click:Connect(function()
+	local root = getRoot()
+	if not root then return notificar("Error", "Personaje no encontrado", "error") end
+	pos1 = root.CFrame
+	crearMarcador(pos1, THEME.Accent)
+	btnG1.Text = "SET!"
+	tween(btnG1, 0.2, {BackgroundColor3 = THEME.Success, TextColor3 = Color3.new(0,0,0)})
+	notificar("TP 1", "Posición guardada", "tp")
+	task.wait(1)
+	btnG1.Text = "RE-SET"
+	tween(btnG1, 0.2, {BackgroundColor3 = Color3.fromRGB(30, 40, 55), TextColor3 = THEME.TextSub})
+end)
+
+-- Guardar TP 2
+btnG2.MouseButton1Click:Connect(function()
+	local root = getRoot()
+	if not root then return notificar("Error", "Personaje no encontrado", "error") end
+	pos2 = root.CFrame
+	crearMarcador(pos2, THEME.Accent2)
+	btnG2.Text = "SET!"
+	tween(btnG2, 0.2, {BackgroundColor3 = THEME.Success, TextColor3 = Color3.new(0,0,0)})
+	notificar("TP 2", "Posición guardada", "tp")
+	task.wait(1)
+	btnG2.Text = "RE-SET"
+	tween(btnG2, 0.2, {BackgroundColor3 = Color3.fromRGB(30, 40, 55), TextColor3 = THEME.TextSub})
+end)
+
+-- Auto TP 1
+local function iniciar1()
+	hilo1 = task.spawn(function()
+		while bucle1 do
+			local root = getRoot()
+			if root and pos1 then root.CFrame = pos1 end
+			local t = tonumber(input1.Text) or 1
+			if t < 0.1 then t = 0.1 end
+			local pasos = math.max(1, math.floor(t * 10))
+			for i = pasos, 1, -1 do
+				if not bucle1 then break end
+				task.wait(t / pasos)
+			end
+		end
+	end)
+end
+
+btnB1.MouseButton1Click:Connect(function()
+	if not pos1 and not bucle1 then
+		return notificar("Atención", "Guarda TP 1 primero", "warning")
+	end
+	bucle1 = not bucle1
+	if bucle1 then
+		btnB1.Text = "ON"
+		tween(btnB1, 0.2, {BackgroundColor3 = THEME.Accent, TextColor3 = Color3.new(0,0,0)})
+		fI1.Visible = true
+		iniciar1()
+		notificar("Auto TP 1", "Activado", "success")
+	else
+		btnB1.Text = "OFF"
+		tween(btnB1, 0.2, {BackgroundColor3 = Color3.fromRGB(30, 40, 55), TextColor3 = THEME.TextSub})
+		fI1.Visible = false
+		if hilo1 then task.cancel(hilo1) hilo1 = nil end
+		notificar("Auto TP 1", "Desactivado", "warning")
+	end
+	reajustar()
+end)
+
+-- Auto TP 2
+local function iniciar2()
+	hilo2 = task.spawn(function()
+		while bucle2 do
+			local root = getRoot()
+			if root and pos2 then root.CFrame = pos2 end
+			local t = tonumber(input2.Text) or 1
+			if t < 0.1 then t = 0.1 end
+			local pasos = math.max(1, math.floor(t * 10))
+			for i = pasos, 1, -1 do
+				if not bucle2 then break end
+				task.wait(t / pasos)
+			end
+		end
+	end)
+end
+
+btnB2.MouseButton1Click:Connect(function()
+	if not pos2 and not bucle2 then
+		return notificar("Atención", "Guarda TP 2 primero", "warning")
+	end
+	bucle2 = not bucle2
+	if bucle2 then
+		btnB2.Text = "ON"
+		tween(btnB2, 0.2, {BackgroundColor3 = THEME.Accent2, TextColor3 = Color3.new(0,0,0)})
+		fI2.Visible = true
+		iniciar2()
+		notificar("Auto TP 2", "Activado", "success")
+	else
+		btnB2.Text = "OFF"
+		tween(btnB2, 0.2, {BackgroundColor3 = Color3.fromRGB(30, 40, 55), TextColor3 = THEME.TextSub})
+		fI2.Visible = false
+		if hilo2 then task.cancel(hilo2) hilo2 = nil end
+		notificar("Auto TP 2", "Desactivado", "warning")
+	end
+	reajustar()
+end)
+
+-- ======================================================
+--  SECUENCIA DE CARGA (6 SEGUNDOS)
+-- ======================================================
+task.spawn(function()
+	-- Barra de progreso durante 6 segundos
+	tween(fillBarra, 6, {Size = UDim2.new(1, 0, 1, 0)}, Enum.EasingStyle.Linear)
+
+	-- Textos de carga actualizados
+	local mensajes = {
+		"Cargando CREADOR XZ OMEGA...",
+		"Conectando módulos XZ...",
+		"Sincronizando coordenadas TP...",
+		"Verificando permisos OMEGA...",
+		"Casi listo..."
+	}
+
+	for i, msg in ipairs(mensajes) do
+		textoCarga.Text = msg
+		task.wait(1.15)
+	end
+
+	-- Ocultar caja
+	tween(caja, 0.4, {BackgroundTransparency = 1})
+	for _, hijo in pairs(caja:GetDescendants()) do
+		if hijo:IsA("TextLabel") or hijo:IsA("Frame") or hijo:IsA("UIStroke") then
+			if hijo:IsA("TextLabel") then
+				tween(hijo, 0.3, {TextTransparency = 1})
+			elseif hijo:IsA("Frame") then
+				tween(hijo, 0.3, {BackgroundTransparency = 1})
+			elseif hijo:IsA("UIStroke") then
+				tween(hijo, 0.3, {Transparency = 1})
+			end
+		end
+	end
+
+	task.wait(0.4)
+
+	-- Mostrar el destello 💫
+	destelloFinal.Visible = true
+	tween(destelloFinal, 0.5, {TextTransparency = 0, TextSize = 95}, Enum.EasingStyle.Back)
+
+	task.wait(1.3)
+
+	-- Desaparecer destello y fondo
+	tween(destelloFinal, 0.4, {TextTransparency = 1, TextSize = 60})
+	tween(carga, 0.5, {BackgroundTransparency = 1})
+
+	task.wait(0.5)
+	carga:Destroy()
+
+	-- Mostrar botón y panel
+	btnAbrir.Visible = true
+	togglePanel()
+	notificar("XZ OMEGA", "Sistema iniciado correctamente", "success")
+end)
+
