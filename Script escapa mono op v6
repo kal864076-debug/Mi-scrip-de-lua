@@ -1,0 +1,1038 @@
+--[[
+    ⚡ XZ SISTEMA MOVEMENT - v6 (Fix Real Speed Physics)
+    Rediseñado al estilo Prime X Hub.
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+-- === TEMA OSCURO / HUB ===
+local THEME = {
+	BgPrimary   = Color3.fromRGB(15, 15, 15),
+	BgSidebar   = Color3.fromRGB(22, 22, 22),
+	BgCard      = Color3.fromRGB(28, 28, 28),
+	Accent      = Color3.fromRGB(34, 197, 94),   -- Verde Activo
+	AccentDark  = Color3.fromRGB(20, 20, 20),
+	Error       = Color3.fromRGB(239, 68, 68),
+	TextMain    = Color3.fromRGB(240, 240, 240),
+	TextSub     = Color3.fromRGB(150, 150, 150)
+}
+
+-- === ESTADO Y VARIABLES DE MOVIMIENTO ===
+local currentWalkSpeed = 16
+local currentJumpHeight = 7
+local infJumpEnabled = false
+local noClipEnabled = false
+
+local panelAbierto = false
+local noClipConnection = nil
+local infJumpConnection = nil
+
+-- === GUI ===
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_Movement_V5_Hub"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- === UTILIDADES ===
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+local function getCharacter()
+	return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+
+local function getHumanoid()
+	local char = getCharacter()
+	return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function applyJumpSettings()
+	local hum = getHumanoid()
+	if hum then
+		hum.JumpHeight = currentJumpHeight
+		hum.UseJumpPower = false
+	end
+end
+
+-- ======================================================
+--  BOTÓN FLOTANTE
+-- ======================================================
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 50, 0, 50)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Text = "🏃"
+btnAbrir.TextColor3 = THEME.Accent
+btnAbrir.Font = Enum.Font.GothamBold
+btnAbrir.TextSize = 26
+btnAbrir.Visible = false
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 12)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent
+strokeBtn.Thickness = 1.5
+
+-- ======================================================
+--  PANEL PRINCIPAL
+-- ======================================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 520, 0, 340)
+mainFrame.Position = UDim2.new(0.5, -260, 0.5, -170)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = Color3.fromRGB(40, 40, 40)
+mainStroke.Thickness = 1
+
+-- Header
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 35)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -60, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "XZ Sistema | Movement"
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 24, 0, 24)
+btnCerrar.Position = UDim2.new(1, -30, 0.5, -12)
+btnCerrar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextMain
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 11
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 6)
+hover(btnCerrar, Color3.fromRGB(35, 35, 35), THEME.Error)
+
+-- Sidebar
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 130, 1, -45)
+sidebar.Position = UDim2.new(0, 10, 0, 38)
+sidebar.BackgroundColor3 = THEME.BgSidebar
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local tabBtn = Instance.new("TextButton", sidebar)
+tabBtn.Size = UDim2.new(1, 0, 0, 32)
+tabBtn.BackgroundColor3 = THEME.BgCard
+tabBtn.Text = "  🏃  Movement"
+tabBtn.TextColor3 = THEME.TextMain
+tabBtn.Font = Enum.Font.GothamMedium
+tabBtn.TextSize = 11
+tabBtn.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
+
+-- Contenido
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -160, 1, -45)
+contentContainer.Position = UDim2.new(0, 150, 0, 38)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 3
+contentContainer.ScrollBarImageColor3 = THEME.Accent
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 8)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local secHeader = Instance.new("TextLabel", contentContainer)
+secHeader.Size = UDim2.new(1, 0, 0, 20)
+secHeader.BackgroundTransparency = 1
+secHeader.Text = "Movement"
+secHeader.TextColor3 = THEME.TextMain
+secHeader.Font = Enum.Font.GothamBold
+secHeader.TextSize = 14
+secHeader.TextXAlignment = Enum.TextXAlignment.Left
+
+-- ======================================================
+--  COMPONENTES (TOGGLES Y SLIDERS)
+-- ======================================================
+
+local function crearToggle(titulo, sub, valorInicial, callback)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -5, 0, sub and 46 or 40)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(1, -60, 0, sub and 18 or 40)
+	tLabel.Position = UDim2.new(0, 12, 0, sub and 6 or 0)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.GothamBold
+	tLabel.TextSize = 12
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	if sub then
+		local sLabel = Instance.new("TextLabel", card)
+		sLabel.Size = UDim2.new(1, -60, 0, 14)
+		sLabel.Position = UDim2.new(0, 12, 0, 24)
+		sLabel.BackgroundTransparency = 1
+		sLabel.Text = sub
+		sLabel.TextColor3 = THEME.TextSub
+		sLabel.Font = Enum.Font.Gotham
+		sLabel.TextSize = 10
+		sLabel.TextXAlignment = Enum.TextXAlignment.Left
+	end
+
+	local switchBg = Instance.new("TextButton", card)
+	switchBg.Size = UDim2.new(0, 42, 0, 22)
+	switchBg.Position = UDim2.new(1, -52, 0.5, -11)
+	switchBg.BackgroundColor3 = valorInicial and THEME.Accent or Color3.fromRGB(45, 45, 45)
+	switchBg.Text = ""
+	switchBg.AutoButtonColor = false
+	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(1, 0)
+
+	local switchCircle = Instance.new("Frame", switchBg)
+	switchCircle.Size = UDim2.new(0, 16, 0, 16)
+	switchCircle.Position = valorInicial and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+	switchCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	switchCircle.BorderSizePixel = 0
+	Instance.new("UICorner", switchCircle).CornerRadius = UDim.new(1, 0)
+
+	local estado = valorInicial
+	switchBg.MouseButton1Click:Connect(function()
+		estado = not estado
+		if estado then
+			tween(switchBg, 0.2, {BackgroundColor3 = THEME.Accent})
+			tween(switchCircle, 0.2, {Position = UDim2.new(1, -19, 0.5, -8)})
+		else
+			tween(switchBg, 0.2, {BackgroundColor3 = Color3.fromRGB(45, 45, 45)})
+			tween(switchCircle, 0.2, {Position = UDim2.new(0, 3, 0.5, -8)})
+		end
+		callback(estado)
+	end)
+end
+
+local function crearSlider(titulo, sub, minVal, maxVal, inicio, callback)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -5, 0, 50)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(0, 150, 0, 18)
+	tLabel.Position = UDim2.new(0, 12, 0, 6)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.GothamBold
+	tLabel.TextSize = 12
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local sLabel = Instance.new("TextLabel", card)
+	sLabel.Size = UDim2.new(0, 180, 0, 14)
+	sLabel.Position = UDim2.new(0, 12, 0, 26)
+	sLabel.BackgroundTransparency = 1
+	sLabel.Text = sub
+	sLabel.TextColor3 = THEME.TextSub
+	sLabel.Font = Enum.Font.Gotham
+	sLabel.TextSize = 10
+	sLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local valLabel = Instance.new("TextLabel", card)
+	valLabel.Size = UDim2.new(0, 35, 0, 18)
+	valLabel.Position = UDim2.new(1, -145, 0, 16)
+	valLabel.BackgroundTransparency = 1
+	valLabel.Text = tostring(inicio)
+	valLabel.TextColor3 = THEME.TextSub
+	valLabel.Font = Enum.Font.Gotham
+	valLabel.TextSize = 11
+
+	local sliderTrack = Instance.new("Frame", card)
+	sliderTrack.Size = UDim2.new(0, 100, 0, 3)
+	sliderTrack.Position = UDim2.new(1, -110, 0.5, -1)
+	sliderTrack.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	sliderTrack.BorderSizePixel = 0
+
+	local pctInicial = math.clamp((inicio - minVal) / (maxVal - minVal), 0, 1)
+
+	local sliderKnob = Instance.new("ImageButton", sliderTrack)
+	sliderKnob.Size = UDim2.new(0, 12, 0, 12)
+	sliderKnob.Position = UDim2.new(pctInicial, -6, 0.5, -6)
+	sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	sliderKnob.BorderSizePixel = 0
+	Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
+
+	local arrastrando = false
+
+	local function actualizar(input)
+		local posX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+		sliderKnob.Position = UDim2.new(posX, -6, 0.5, -6)
+		local valor = math.floor(minVal + (maxVal - minVal) * posX)
+		valLabel.Text = tostring(valor)
+		callback(valor)
+	end
+
+	sliderKnob.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			arrastrando = true
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			arrastrando = false
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if arrastrando and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			actualizar(input)
+		end
+	end)
+end
+
+-- ======================================================
+--  CREACIÓN DE OPCIONES
+-- ======================================================
+
+-- 1. Speed Slider
+crearSlider("Speed Slider", "Change your WalkSpeed", 16, 200, 16, function(val)
+	currentWalkSpeed = val
+end)
+
+-- 2. Jump Height Slider
+crearSlider("Jump Height Slider", "Change your Jump Height", 7, 150, 7, function(val)
+	currentJumpHeight = val
+	applyJumpSettings()
+end)
+
+-- 3. INF Jump
+crearToggle("INF Jump", nil, false, function(val)
+	infJumpEnabled = val
+	if infJumpEnabled then
+		infJumpConnection = UserInputService.JumpRequest:Connect(function()
+			local hum = getHumanoid()
+			if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+		end)
+	else
+		if infJumpConnection then
+			infJumpConnection:Disconnect()
+			infJumpConnection = nil
+		end
+	end
+end)
+
+-- 4. No Clip
+crearToggle("No Clip", nil, false, function(val)
+	noClipEnabled = val
+	if noClipEnabled then
+		noClipConnection = RunService.Stepped:Connect(function()
+			local char = LocalPlayer.Character
+			if char then
+				for _, part in ipairs(char:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
+			end
+		end)
+	else
+		if noClipConnection then
+			noClipConnection:Disconnect()
+			noClipConnection = nil
+		end
+	end
+end)
+
+-- BUCLE DE VELOCIDAD FORZADA POR FÍSICAS (RenderStepped)
+-- Inyecta velocidad directamente a la dirección de movimiento para ignorar los bloqueos del juego
+RunService.RenderStepped:Connect(function()
+	local hum = getHumanoid()
+	local char = getCharacter()
+	
+	if hum and char then
+		-- Mantener WalkSpeed base
+		hum.WalkSpeed = currentWalkSpeed
+		hum.JumpHeight = currentJumpHeight
+
+		-- Bypass mediante vector de dirección (Funciona cuando el juego bloquea WalkSpeed)
+		if currentWalkSpeed > 16 and hum.MoveDirection.Magnitude > 0 then
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local moveDir = hum.MoveDirection
+				hrp.AssemblyLinearVelocity = Vector3.new(
+					moveDir.X * currentWalkSpeed,
+					hrp.AssemblyLinearVelocity.Y,
+					moveDir.Z * currentWalkSpeed
+				)
+			end
+		end
+	end
+end)
+
+-- Detectar reaparición del jugador
+LocalPlayer.CharacterAdded:Connect(function()
+	task.wait(0.5)
+	applyJumpSettings()
+end)
+
+-- Ajustar Scroll
+contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	contentContainer.CanvasSize = UDim2.new(0, 0, 0, contentLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- ======================================================
+--  LÓGICA DEL PANEL Y ABRIR/CERRAR
+-- ======================================================
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		tween(mainFrame, 0.35, {
+			Size = UDim2.new(0, 520, 0, 340),
+			Position = UDim2.new(0.5, -260, 0.5, -170)
+		}, Enum.EasingStyle.Back)
+	else
+		local a = tween(mainFrame, 0.25, {
+			Size = UDim2.new(0, 0, 0, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function()
+			if not panelAbierto then mainFrame.Visible = false end
+		end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+
+-- Esperar 6 segundos antes de activar y mostrar todo
+task.delay(6, function()
+	btnAbrir.Visible = true
+	togglePanel()
+end)
+
+--[[
+    ⚡ XZ SISTEMA TP - v5.2 (Diseño Hub Moderno)
+    Rediseñado al estilo Prime X Hub manteniendo tus funciones.
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- === TEMA OSACURO / HUB ===
+local THEME = {
+	BgPrimary   = Color3.fromRGB(15, 15, 15),
+	BgSidebar   = Color3.fromRGB(22, 22, 22),
+	BgCard      = Color3.fromRGB(28, 28, 28),
+	Accent      = Color3.fromRGB(255, 35, 35),   -- Rojo SK
+	Accent2     = Color3.fromRGB(180, 20, 20),
+	Success     = Color3.fromRGB(34, 197, 94),
+	Warning     = Color3.fromRGB(250, 204, 21),
+	Error       = Color3.fromRGB(239, 68, 68),
+	TextMain    = Color3.fromRGB(240, 240, 240),
+	TextSub     = Color3.fromRGB(150, 150, 150)
+}
+
+-- === ESTADO ===
+local pos1, pos2 = nil, nil
+local bucle1, bucle2 = false, false
+local hilo1, hilo2 = nil, nil
+local panelAbierto = false
+local marcador = nil
+local rotacion = nil
+
+-- === GUI ===
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_SistemaTP_V5_Hub"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- === UTILIDADES ===
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+local function notificar(titulo, msg, tipo)
+	local color = THEME.Accent
+	local icon = "⚙️"
+	if tipo == "success" then color = THEME.Success; icon = "✅"
+	elseif tipo == "error" then color = THEME.Error; icon = "❌"
+	elseif tipo == "warning" then color = THEME.Warning; icon = "⚠️"
+	elseif tipo == "tp" then color = THEME.Accent2; icon = "📍"
+	end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 240, 0, 48)
+	toast.Position = UDim2.new(1, 20, 0.82, 0)
+	toast.BackgroundColor3 = THEME.BgCard
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.5
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -14, 0, 18)
+	t1.Position = UDim2.new(0, 10, 0, 5)
+	t1.BackgroundTransparency = 1
+	t1.Text = icon .. "  " .. string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.GothamBold
+	t1.TextSize = 11
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -14, 0, 18)
+	t2.Position = UDim2.new(0, 10, 0, 24)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 11
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.35, {Position = UDim2.new(1, -260, 0.82, 0)}, Enum.EasingStyle.Back)
+	task.delay(2.6, function()
+		local out = tween(toast, 0.3, {Position = UDim2.new(1, 20, 0.82, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function quitarMarcador()
+	if rotacion then rotacion:Disconnect() rotacion = nil end
+	if marcador then marcador:Destroy() marcador = nil end
+end
+
+local function crearMarcador(cf, color)
+	quitarMarcador()
+	local model = Instance.new("Model")
+	model.Name = "XZ_TP_Marker"
+
+	local part = Instance.new("Part")
+	part.Size = Vector3.new(1.5, 1.5, 1.5)
+	part.CFrame = cf * CFrame.new(0, 2.5, 0)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Material = Enum.Material.Neon
+	part.Color = color
+	part.Transparency = 0.2
+	part.Parent = model
+
+	local mesh = Instance.new("SpecialMesh", part)
+	mesh.MeshType = Enum.MeshType.FileMesh
+	mesh.MeshId = "rbxassetid://10337144"
+	mesh.Scale = Vector3.new(1.2, 2.0, 1.2)
+
+	local ground = Instance.new("Part")
+	ground.Size = Vector3.new(0.6, 0.1, 0.6)
+	ground.CFrame = cf
+	ground.Anchored = true
+	ground.Transparency = 1
+	ground.CanCollide = false
+	ground.Parent = model
+
+	local a0 = Instance.new("Attachment", part)
+	local a1 = Instance.new("Attachment", ground)
+
+	local beam = Instance.new("Beam", part)
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.Color = ColorSequence.new(color, THEME.Accent2)
+	beam.Width0 = 0.9
+	beam.Width1 = 0.07
+	beam.FaceCamera = true
+
+	local hl = Instance.new("Highlight", model)
+	hl.FillColor = color
+	hl.OutlineColor = Color3.new(1,1,1)
+	hl.FillTransparency = 0.5
+
+	model.Parent = Workspace
+	marcador = model
+
+	local ang = 0
+	rotacion = RunService.RenderStepped:Connect(function(dt)
+		if part and part.Parent then
+			ang = ang + dt * 75
+			part.CFrame = (cf * CFrame.new(0, 2.5 + math.sin(os.clock()*2.5)*0.28, 0)) * CFrame.Angles(0, math.rad(ang), 0)
+		end
+	end)
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+-- ======================================================
+--  ANIMACIÓN DE CARGA
+-- ======================================================
+local cargaContainer = Instance.new("Frame")
+cargaContainer.Size = UDim2.new(1, 0, 1, 0)
+cargaContainer.BackgroundTransparency = 1
+cargaContainer.Parent = screenGui
+
+local panelTop = Instance.new("Frame", cargaContainer)
+panelTop.Size = UDim2.new(1, 0, 0.5, 0)
+panelTop.BackgroundColor3 = Color3.fromRGB(6, 4, 6)
+panelTop.BorderSizePixel = 0
+
+local panelBottom = Instance.new("Frame", cargaContainer)
+panelBottom.Size = UDim2.new(1, 0, 0.5, 0)
+panelBottom.Position = UDim2.new(0, 0, 0.5, 0)
+panelBottom.BackgroundColor3 = Color3.fromRGB(6, 4, 6)
+panelBottom.BorderSizePixel = 0
+
+local orb = Instance.new("Frame", cargaContainer)
+orb.Size = UDim2.new(0, 10, 0, 10)
+orb.Position = UDim2.new(0.5, -5, 0.5, -5)
+orb.BackgroundColor3 = THEME.Accent
+orb.BorderSizePixel = 0
+Instance.new("UICorner", orb).CornerRadius = UDim.new(1, 0)
+
+local introFrame = Instance.new("Frame", cargaContainer)
+introFrame.Size = UDim2.new(0, 360, 0, 140)
+introFrame.Position = UDim2.new(0.5, -180, 0.5, -70)
+introFrame.BackgroundTransparency = 1
+
+local tituloIntro = Instance.new("TextLabel", introFrame)
+tituloIntro.Size = UDim2.new(1, 0, 0, 40)
+tituloIntro.Position = UDim2.new(0, 0, 0.1, 0)
+tituloIntro.BackgroundTransparency = 1
+tituloIntro.Text = "👹 escapa mono XZ 🥀 5.2v"
+tituloIntro.TextColor3 = THEME.Accent
+tituloIntro.Font = Enum.Font.GothamBold
+tituloIntro.TextSize = 22
+tituloIntro.TextTransparency = 1
+
+local estadoIntro = Instance.new("TextLabel", introFrame)
+estadoIntro.Size = UDim2.new(1, 0, 0, 24)
+estadoIntro.Position = UDim2.new(0, 0, 0.45, 0)
+estadoIntro.BackgroundTransparency = 1
+estadoIntro.Text = "[ INICIALIZANDO ]"
+estadoIntro.TextColor3 = THEME.TextMain
+estadoIntro.Font = Enum.Font.Code
+estadoIntro.TextSize = 13
+estadoIntro.TextTransparency = 1
+
+local anilloProgreso = Instance.new("Frame", introFrame)
+anilloProgreso.Size = UDim2.new(0, 0, 0, 3)
+anilloProgreso.Position = UDim2.new(0.5, 0, 0.75, 0)
+anilloProgreso.BackgroundColor3 = THEME.Accent2
+anilloProgreso.BorderSizePixel = 0
+
+-- ======================================================
+--  BOTÓN FLOTANTE
+-- ======================================================
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 50, 0, 50)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Text = "🙉"
+btnAbrir.TextColor3 = THEME.Accent
+btnAbrir.Font = Enum.Font.GothamBold
+btnAbrir.TextSize = 26
+btnAbrir.Visible = false
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 12)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent
+strokeBtn.Thickness = 1.5
+
+-- ======================================================
+--  PANEL PRINCIPAL (ESTILO HUB / FOTO)
+-- ======================================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 520, 0, 320)
+mainFrame.Position = UDim2.new(0.5, -260, 0.5, -160)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = Color3.fromRGB(40, 40, 40)
+mainStroke.Thickness = 1
+
+-- --- BARRA SUPERIOR (HEADER) ---
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 35)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -60, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "XZ Sistema TP | Escapa Mono 🙉"
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 24, 0, 24)
+btnCerrar.Position = UDim2.new(1, -30, 0.5, -12)
+btnCerrar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextMain
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 11
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 6)
+hover(btnCerrar, Color3.fromRGB(35, 35, 35), THEME.Error)
+
+-- --- BARRA LATERAL (SIDEBAR) ---
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 130, 1, -45)
+sidebar.Position = UDim2.new(0, 10, 0, 38)
+sidebar.BackgroundColor3 = THEME.BgSidebar
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function crearTab(nombre, icono, activo)
+	local btn = Instance.new("TextButton", sidebar)
+	btn.Size = UDim2.new(1, 0, 0, 32)
+	btn.BackgroundTransparency = activo and 0 or 1
+	btn.BackgroundColor3 = THEME.BgCard
+	btn.Text = "  " .. icono .. "  " .. nombre
+	btn.TextColor3 = activo and THEME.TextMain or THEME.TextSub
+	btn.Font = Enum.Font.GothamMedium
+	btn.TextSize = 11
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	return btn
+end
+
+crearTab("Teleport", "📍", true)
+crearTab("Settings", "⚙️", false)
+
+-- --- CONTENEDOR CONTENIDO (PÁGINA TELEPORT) ---
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -160, 1, -45)
+contentContainer.Position = UDim2.new(0, 150, 0, 38)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 3
+contentContainer.ScrollBarImageColor3 = THEME.Accent
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 8)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function crearTarjetaOpcion(titulo, sub)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -5, 0, 46)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(1, -110, 0, 18)
+	tLabel.Position = UDim2.new(0, 10, 0, 6)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.GothamBold
+	tLabel.TextSize = 12
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local sLabel = Instance.new("TextLabel", card)
+	sLabel.Size = UDim2.new(1, -110, 0, 14)
+	sLabel.Position = UDim2.new(0, 10, 0, 24)
+	sLabel.BackgroundTransparency = 1
+	sLabel.Text = sub
+	sLabel.TextColor3 = THEME.TextSub
+	sLabel.Font = Enum.Font.Gotham
+	sLabel.TextSize = 10
+	sLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local btn = Instance.new("TextButton", card)
+	btn.Size = UDim2.new(0, 80, 0, 26)
+	btn.Position = UDim2.new(1, -90, 0.5, -13)
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.Text = "OFF"
+	btn.TextColor3 = THEME.TextSub
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 10
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	hover(btn, Color3.fromRGB(40, 40, 40), Color3.fromRGB(55, 55, 55))
+
+	return card, btn
+end
+
+local function crearTarjetaIntervalo()
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -5, 0, 36)
+	card.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
+	card.BorderSizePixel = 0
+	card.Visible = false
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+	local lbl = Instance.new("TextLabel", card)
+	lbl.Size = UDim2.new(0, 150, 1, 0)
+	lbl.Position = UDim2.new(0, 10, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "Intervalo Auto TP (segundos):"
+	lbl.TextColor3 = THEME.TextSub
+	lbl.Font = Enum.Font.Gotham
+	lbl.TextSize = 10
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	local box = Instance.new("TextBox", card)
+	box.Size = UDim2.new(0, 50, 0, 22)
+	box.Position = UDim2.new(1, -60, 0.5, -11)
+	box.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	box.Text = "1.0"
+	box.TextColor3 = THEME.Accent
+	box.Font = Enum.Font.GothamBold
+	box.TextSize = 11
+	box.ClearTextOnFocus = false
+	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
+
+	box:GetPropertyChangedSignal("Text"):Connect(function()
+		box.Text = box.Text:gsub("[^%d%.]", "")
+	end)
+
+	return card, box
+end
+
+-- === ELEMENTOS TP 1 ===
+local _, btnG1 = crearTarjetaOpcion("Guardar TP 1", "Guarda la posición actual")
+btnG1.Text = "SET"
+
+local _, btnB1 = crearTarjetaOpcion("Auto TP 1", "Bucle de teletransporte 1")
+local fI1, input1 = crearTarjetaIntervalo()
+
+-- === ELEMENTOS TP 2 ===
+local _, btnG2 = crearTarjetaOpcion("Guardar TP 2", "Guarda la segunda posición")
+btnG2.Text = "SET"
+
+local _, btnB2 = crearTarjetaOpcion("Auto TP 2", "Bucle de teletransporte 2")
+local fI2, input2 = crearTarjetaIntervalo()
+
+-- Ajustar Scroll
+contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	contentContainer.CanvasSize = UDim2.new(0, 0, 0, contentLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- ======================================================
+--  LÓGICA TP Y TOGGLE
+-- ======================================================
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		tween(mainFrame, 0.35, {
+			Size = UDim2.new(0, 520, 0, 320),
+			Position = UDim2.new(0.5, -260, 0.5, -160)
+		}, Enum.EasingStyle.Back)
+	else
+		local a = tween(mainFrame, 0.25, {
+			Size = UDim2.new(0, 0, 0, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function()
+			if not panelAbierto then mainFrame.Visible = false end
+		end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+
+local function getRoot()
+	local c = LocalPlayer.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+-- TP 1
+btnG1.MouseButton1Click:Connect(function()
+	local root = getRoot()
+	if not root then return notificar("Error", "Personaje no encontrado", "error") end
+	pos1 = root.CFrame
+	crearMarcador(pos1, THEME.Accent)
+	btnG1.Text = "SET!"
+	tween(btnG1, 0.2, {BackgroundColor3 = THEME.Success, TextColor3 = Color3.new(0,0,0)})
+	notificar("TP 1", "Posición guardada", "tp")
+	task.wait(1)
+	btnG1.Text = "RE-SET"
+	tween(btnG1, 0.2, {BackgroundColor3 = Color3.fromRGB(40, 40, 40), TextColor3 = THEME.TextSub})
+end)
+
+local function iniciar1()
+	hilo1 = task.spawn(function()
+		while bucle1 do
+			local root = getRoot()
+			if root and pos1 then root.CFrame = pos1 end
+			local t = tonumber(input1.Text) or 1
+			if t < 0.1 then t = 0.1 end
+			local pasos = math.max(1, math.floor(t * 10))
+			for i = pasos, 1, -1 do
+				if not bucle1 then break end
+				task.wait(t / pasos)
+			end
+		end
+	end)
+end
+
+btnB1.MouseButton1Click:Connect(function()
+	if not pos1 and not bucle1 then
+		return notificar("Atención", "Guarda TP 1 primero", "warning")
+	end
+	bucle1 = not bucle1
+	if bucle1 then
+		btnB1.Text = "ON"
+		tween(btnB1, 0.2, {BackgroundColor3 = THEME.Accent, TextColor3 = Color3.new(1,1,1)})
+		fI1.Visible = true
+		iniciar1()
+		notificar("Auto TP 1", "Activado", "success")
+	else
+		btnB1.Text = "OFF"
+		tween(btnB1, 0.2, {BackgroundColor3 = Color3.fromRGB(40, 40, 40), TextColor3 = THEME.TextSub})
+		fI1.Visible = false
+		if hilo1 then task.cancel(hilo1) hilo1 = nil end
+		notificar("Auto TP 1", "Desactivado", "warning")
+	end
+end)
+
+-- TP 2
+btnG2.MouseButton1Click:Connect(function()
+	local root = getRoot()
+	if not root then return notificar("Error", "Personaje no encontrado", "error") end
+	pos2 = root.CFrame
+	crearMarcador(pos2, THEME.Accent2)
+	btnG2.Text = "SET!"
+	tween(btnG2, 0.2, {BackgroundColor3 = THEME.Success, TextColor3 = Color3.new(0,0,0)})
+	notificar("TP 2", "Posición guardada", "tp")
+	task.wait(1)
+	btnG2.Text = "RE-SET"
+	tween(btnG2, 0.2, {BackgroundColor3 = Color3.fromRGB(40, 40, 40), TextColor3 = THEME.TextSub})
+end)
+
+local function iniciar2()
+	hilo2 = task.spawn(function()
+		while bucle2 do
+			local root = getRoot()
+			if root and pos2 then root.CFrame = pos2 end
+			local t = tonumber(input2.Text) or 1
+			if t < 0.1 then t = 0.1 end
+			local pasos = math.max(1, math.floor(t * 10))
+			for i = pasos, 1, -1 do
+				if not bucle2 then break end
+				task.wait(t / pasos)
+			end
+		end
+	end)
+end
+
+btnB2.MouseButton1Click:Connect(function()
+	if not pos2 and not bucle2 then
+		return notificar("Atención", "Guarda TP 2 primero", "warning")
+	end
+	bucle2 = not bucle2
+	if bucle2 then
+		btnB2.Text = "ON"
+		tween(btnB2, 0.2, {BackgroundColor3 = THEME.Accent2, TextColor3 = Color3.new(1,1,1)})
+		fI2.Visible = true
+		iniciar2()
+		notificar("Auto TP 2", "Activado", "success")
+	else
+		btnB2.Text = "OFF"
+		tween(btnB2, 0.2, {BackgroundColor3 = Color3.fromRGB(40, 40, 40), TextColor3 = THEME.TextSub})
+		fI2.Visible = false
+		if hilo2 then task.cancel(hilo2) hilo2 = nil end
+		notificar("Auto TP 2", "Desactivado", "warning")
+	end
+end)
+
+-- ======================================================
+--  EJECUCIÓN DE LA ANIMACIÓN DE INICIO
+-- ======================================================
+task.spawn(function()
+	tween(orb, 0.6, {Size = UDim2.new(0, 180, 0, 180), Position = UDim2.new(0.5, -90, 0.5, -90), BackgroundTransparency = 0.85}, Enum.EasingStyle.Back)
+	task.wait(0.6)
+
+	tween(tituloIntro, 0.5, {TextTransparency = 0})
+	tween(estadoIntro, 0.5, {TextTransparency = 0})
+	task.wait(0.3)
+
+	tween(anilloProgreso, 4, {Size = UDim2.new(0, 240, 0, 3), Position = UDim2.new(0.5, -120, 0.75, 0)}, Enum.EasingStyle.Quad)
+
+	local secuencias = {
+		"[ CARGANDO EL MENÚ... ]",
+		"[ HACIENDO CÁLCULOS DEL SISTEMA... ]",
+		"[ ACCESO CONCEDIDO ]"
+	}
+
+	for _, text in ipairs(secuencias) do
+		estadoIntro.Text = text
+		task.wait(1.2)
+	end
+
+	tween(introFrame, 0.3, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)})
+	tween(orb, 0.3, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)})
+	task.wait(0.3)
+
+	tween(panelTop, 0.6, {Position = UDim2.new(0, 0, -0.5, 0)}, Enum.EasingStyle.Quart, Enum.EasingDirection.InOut)
+	tween(panelBottom, 0.6, {Position = UDim2.new(0, 0, 1, 0)}, Enum.EasingStyle.Quart, Enum.EasingDirection.InOut)
+
+	task.wait(0.6)
+	cargaContainer:Destroy()
+
+	btnAbrir.Visible = true
+	togglePanel()
+	notificar("escapa mono XZ 🥀 6v", "Sistema cargado correctamente", "success")
+end)
