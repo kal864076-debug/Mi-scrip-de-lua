@@ -1,0 +1,1 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/kal864076-debug/Mi-scrip-de-lua/refs/heads/main/Script%20escapa%20mono%20v8"))()
