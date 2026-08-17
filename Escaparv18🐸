@@ -1,0 +1,595 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local Stats = game:GetService("Stats")
+local LocalPlayer = Players.LocalPlayer
+
+local PALETAS = {
+	["Negro Celeste"] = {
+		BgPrimary   = Color3.fromRGB(10, 15, 20),
+		BgSidebar   = Color3.fromRGB(5, 8, 12),
+		BgCard      = Color3.fromRGB(18, 25, 34),
+		Accent      = Color3.fromRGB(0, 229, 255),
+		Accent2     = Color3.fromRGB(0, 255, 136),
+		Accent3     = Color3.fromRGB(255, 150, 0),
+		TextMain    = Color3.fromRGB(230, 245, 255),
+		TextSub     = Color3.fromRGB(120, 145, 165),
+		Border      = Color3.fromRGB(0, 140, 180),
+		Warning     = Color3.fromRGB(255, 200, 0),
+		Error       = Color3.fromRGB(255, 50, 75)
+	},
+	["Azul Púrpura"] = {
+		BgPrimary   = Color3.fromRGB(15, 12, 28),
+		BgSidebar   = Color3.fromRGB(8, 6, 16),
+		BgCard      = Color3.fromRGB(28, 22, 48),
+		Accent      = Color3.fromRGB(170, 0, 255),
+		Accent2     = Color3.fromRGB(0, 255, 200),
+		Accent3     = Color3.fromRGB(255, 100, 200),
+		TextMain    = Color3.fromRGB(245, 230, 255),
+		TextSub     = Color3.fromRGB(150, 130, 180),
+		Border      = Color3.fromRGB(120, 0, 200),
+		Warning     = Color3.fromRGB(255, 200, 0),
+		Error       = Color3.fromRGB(255, 50, 75)
+	},
+	["Rojo Fuerte"] = {
+		BgPrimary   = Color3.fromRGB(20, 10, 10),
+		BgSidebar   = Color3.fromRGB(12, 5, 5),
+		BgCard      = Color3.fromRGB(35, 18, 18),
+		Accent      = Color3.fromRGB(255, 45, 60),
+		Accent2     = Color3.fromRGB(255, 150, 0),
+		Accent3     = Color3.fromRGB(255, 220, 0),
+		TextMain    = Color3.fromRGB(255, 235, 235),
+		TextSub     = Color3.fromRGB(170, 120, 120),
+		Border      = Color3.fromRGB(180, 30, 40),
+		Warning     = Color3.fromRGB(255, 200, 0),
+		Error       = Color3.fromRGB(255, 50, 75)
+	},
+	["Amarillo Neón"] = {
+		BgPrimary   = Color3.fromRGB(20, 20, 10),
+		BgSidebar   = Color3.fromRGB(12, 12, 5),
+		BgCard      = Color3.fromRGB(35, 35, 18),
+		Accent      = Color3.fromRGB(255, 220, 0),
+		Accent2     = Color3.fromRGB(0, 255, 150),
+		Accent3     = Color3.fromRGB(255, 130, 0),
+		TextMain    = Color3.fromRGB(255, 255, 230),
+		TextSub     = Color3.fromRGB(165, 165, 120),
+		Border      = Color3.fromRGB(180, 160, 0),
+		Warning     = Color3.fromRGB(255, 200, 0),
+		Error       = Color3.fromRGB(255, 50, 75)
+	},
+	["Verde Esmeralda"] = {
+		BgPrimary   = Color3.fromRGB(10, 20, 15),
+		BgSidebar   = Color3.fromRGB(5, 12, 8),
+		BgCard      = Color3.fromRGB(18, 35, 25),
+		Accent      = Color3.fromRGB(0, 255, 136),
+		Accent2     = Color3.fromRGB(0, 229, 255),
+		Accent3     = Color3.fromRGB(200, 255, 0),
+		TextMain    = Color3.fromRGB(230, 255, 240),
+		TextSub     = Color3.fromRGB(120, 165, 140),
+		Border      = Color3.fromRGB(0, 180, 100),
+		Warning     = Color3.fromRGB(255, 200, 0),
+		Error       = Color3.fromRGB(255, 50, 75)
+	}
+}
+
+local THEME = PALETAS["Negro Celeste"]
+
+local currentJumpHeight = 50
+local currentWalkSpeed = 16
+local infJumpEnabled = false
+local noClipEnabled = false
+local noClipConnection = nil
+
+local pos1 = nil
+local bucle1 = false
+local hilo1 = nil
+local marcador = nil
+local rotacion = nil
+local tpDelaySpeed = 0.1
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EscaparDeUnMono_Gui"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local function tween(obj, duration, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local anim = TweenService:Create(obj, TweenInfo.new(duration, style, dir), props)
+	anim:Play()
+	return anim
+end
+
+local function makeDraggable(guiObject)
+	local dragging, dragInput, dragStart, startPos
+	guiObject.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = guiObject.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then dragging = false end
+			end)
+		end
+	end)
+	guiObject.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			tween(guiObject, 0.08, {
+				Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			}, Enum.EasingStyle.Linear)
+		end
+	end)
+end
+
+local function getCharacter()
+	return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+
+local function getHumanoid()
+	local char = getCharacter()
+	return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function getRoot()
+	local char = getCharacter()
+	return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function notificar(titulo, msg, tipo)
+	local color = THEME.Accent
+	local icon = "🐒"
+	if tipo == "success" then color = THEME.Accent2; icon = "✨"
+	elseif tipo == "error" then color = THEME.Error; icon = "🚨"
+	elseif tipo == "warning" then color = THEME.Warning; icon = "⚠️"
+	elseif tipo == "tp" then color = THEME.Accent3; icon = "📍"
+	end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 210, 0, 44)
+	toast.Position = UDim2.new(1, 20, 0.82, 0)
+	toast.BackgroundColor3 = THEME.BgCard
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.2
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -12, 0, 16)
+	t1.Position = UDim2.new(0, 10, 0, 5)
+	t1.BackgroundTransparency = 1
+	t1.Text = icon .. "  " .. string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.RobotoMono
+	t1.TextSize = 10
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -12, 0, 16)
+	t2.Position = UDim2.new(0, 10, 0, 21)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 9
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.35, {Position = UDim2.new(1, -225, 0.82, 0)}, Enum.EasingStyle.Back)
+	task.delay(2.5, function()
+		local out = tween(toast, 0.3, {Position = UDim2.new(1, 20, 0.82, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function quitarMarcador()
+	if rotacion then rotacion:Disconnect() rotacion = nil end
+	if marcador then marcador:Destroy() marcador = nil end
+end
+
+local function crearMarcador(cf, color)
+	quitarMarcador()
+	local model = Instance.new("Model")
+	model.Name = "XZ_TP_Marker"
+
+	local part = Instance.new("Part")
+	part.Size = Vector3.new(1.8, 1.8, 1.8)
+	part.CFrame = cf * CFrame.new(0, 2.8, 0)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Material = Enum.Material.Neon
+	part.Color = color
+	part.Transparency = 0.15
+	part.Parent = model
+
+	local mesh = Instance.new("SpecialMesh", part)
+	mesh.MeshType = Enum.MeshType.FileMesh
+	mesh.MeshId = "rbxassetid://10337144"
+	mesh.Scale = Vector3.new(1.4, 2.2, 1.4)
+
+	local ground = Instance.new("Part")
+	ground.Size = Vector3.new(0.6, 0.1, 0.6)
+	ground.CFrame = cf
+	ground.Anchored = true
+	ground.Transparency = 1
+	ground.CanCollide = false
+	ground.Parent = model
+
+	local a0 = Instance.new("Attachment", part)
+	local a1 = Instance.new("Attachment", ground)
+
+	local beam = Instance.new("Beam", part)
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.Color = ColorSequence.new(color, THEME.Accent3)
+	beam.Width0 = 1.0
+	beam.Width1 = 0.05
+	beam.FaceCamera = true
+
+	local hl = Instance.new("Highlight", model)
+	hl.FillColor = color
+	hl.OutlineColor = Color3.new(1,1,1)
+	hl.FillTransparency = 0.4
+
+	model.Parent = Workspace
+	marcador = model
+
+	local ang = 0
+	rotacion = RunService.RenderStepped:Connect(function(dt)
+		if part and part.Parent then
+			ang = ang + dt * 85
+			part.CFrame = (cf * CFrame.new(0, 2.8 + math.sin(os.clock()*3)*0.35, 0)) * CFrame.Angles(0, math.rad(ang), 0)
+		end
+	end)
+end
+
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 65, 0, 52)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Text = "esca"
+btnAbrir.TextColor3 = THEME.Accent
+btnAbrir.Font = Enum.Font.GothamBold
+btnAbrir.TextSize = 15
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 10)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent
+strokeBtn.Thickness = 1.8
+
+makeDraggable(btnAbrir)
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 430, 0, 280)
+mainFrame.Position = UDim2.new(0.5, -215, 0.5, -140)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = THEME.Border
+mainStroke.Thickness = 1.5
+
+makeDraggable(mainFrame)
+
+btnAbrir.MouseButton1Click:Connect(function()
+	mainFrame.Visible = not mainFrame.Visible
+end)
+
+local loadingFrame = Instance.new("Frame")
+loadingFrame.Size = UDim2.new(0, 310, 0, 140)
+loadingFrame.Position = UDim2.new(0.5, -155, 0.5, -70)
+loadingFrame.BackgroundColor3 = THEME.BgPrimary
+loadingFrame.BorderSizePixel = 0
+loadingFrame.ZIndex = 50
+loadingFrame.Parent = screenGui
+Instance.new("UICorner", loadingFrame).CornerRadius = UDim.new(0, 10)
+
+local loadStroke = Instance.new("UIStroke", loadingFrame)
+loadStroke.Color = THEME.Accent
+loadStroke.Thickness = 1.5
+
+local loadTitle = Instance.new("TextLabel", loadingFrame)
+loadTitle.Size = UDim2.new(1, 0, 0, 28)
+loadTitle.Position = UDim2.new(0, 0, 0, 20)
+loadTitle.BackgroundTransparency = 1
+loadTitle.Text = "🐒 CARGANDO PANEL v18.0..."
+loadTitle.TextColor3 = THEME.TextMain
+loadTitle.Font = Enum.Font.RobotoMono
+loadTitle.TextSize = 14
+
+local loadCreator = Instance.new("TextLabel", loadingFrame)
+loadCreator.Size = UDim2.new(1, 0, 0, 22)
+loadCreator.Position = UDim2.new(0, 0, 0, 48)
+loadCreator.BackgroundTransparency = 1
+loadCreator.Text = "CREADOR: XZ_OMEGAOP"
+loadCreator.TextColor3 = THEME.Accent
+loadCreator.Font = Enum.Font.GothamBold
+loadCreator.TextSize = 13
+
+local barBg = Instance.new("Frame", loadingFrame)
+barBg.Size = UDim2.new(0.85, 0, 0, 10)
+barBg.Position = UDim2.new(0.075, 0, 0, 85)
+barBg.BackgroundColor3 = THEME.BgSidebar
+barBg.BorderSizePixel = 0
+Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
+
+local barFill = Instance.new("Frame", barBg)
+barFill.Size = UDim2.new(0, 0, 1, 0)
+barFill.BackgroundColor3 = THEME.Accent2
+barFill.BorderSizePixel = 0
+Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
+
+tween(barFill, 4.0, {Size = UDim2.new(1, 0, 1, 0)}, Enum.EasingStyle.Linear)
+
+task.delay(4.0, function()
+	tween(loadingFrame, 0.4, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}).Completed:Connect(function()
+		loadingFrame:Destroy()
+		mainFrame.Visible = true
+		notificar("XZ_OMEGAOP", "Panel v18.0 cargado con éxito", "success")
+	end)
+end)
+
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 34)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -50, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🐒 ESCAPAR DE UN MONO v18.0 | XZ_OMEGAOP"
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.RobotoMono
+titleLabel.TextSize = 11
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 22, 0, 22)
+btnCerrar.Position = UDim2.new(1, -28, 0.5, -11)
+btnCerrar.BackgroundColor3 = Color3.fromRGB(28, 32, 42)
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextSub
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 11
+btnCerrar.Parent = topBar
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 5)
+
+btnCerrar.MouseButton1Click:Connect(function()
+	mainFrame.Visible = false
+end)
+
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 115, 1, -64)
+sidebar.Position = UDim2.new(0, 10, 0, 34)
+sidebar.BackgroundColor3 = THEME.BgSidebar
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.Padding = UDim.new(0, 5)
+
+local footer = Instance.new("Frame", mainFrame)
+footer.Size = UDim2.new(1, -20, 0, 22)
+footer.Position = UDim2.new(0, 10, 1, -26)
+footer.BackgroundColor3 = THEME.BgSidebar
+footer.BorderSizePixel = 0
+Instance.new("UICorner", footer).CornerRadius = UDim.new(0, 5)
+
+local statsLabel = Instance.new("TextLabel", footer)
+statsLabel.Size = UDim2.new(1, -16, 1, 0)
+statsLabel.Position = UDim2.new(0, 8, 0, 0)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "🟢 FPS: -- | ⚡ Ping: -- ms | 👤 " .. LocalPlayer.Name
+statsLabel.TextColor3 = THEME.TextSub
+statsLabel.Font = Enum.Font.RobotoMono
+statsLabel.TextSize = 9
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local pageMovimiento = Instance.new("ScrollingFrame", mainFrame)
+pageMovimiento.Size = UDim2.new(1, -140, 1, -64)
+pageMovimiento.Position = UDim2.new(0, 130, 0, 34)
+pageMovimiento.BackgroundTransparency = 1
+pageMovimiento.BorderSizePixel = 0
+pageMovimiento.ScrollBarThickness = 3
+pageMovimiento.ScrollBarImageColor3 = THEME.Accent
+pageMovimiento.Visible = true
+
+local layoutMov = Instance.new("UIListLayout", pageMovimiento)
+layoutMov.Padding = UDim.new(0, 6)
+
+local pageTeleport = Instance.new("ScrollingFrame", mainFrame)
+pageTeleport.Size = UDim2.new(1, -140, 1, -64)
+pageTeleport.Position = UDim2.new(0, 130, 0, 34)
+pageTeleport.BackgroundTransparency = 1
+pageTeleport.BorderSizePixel = 0
+pageTeleport.ScrollBarThickness = 3
+pageTeleport.ScrollBarImageColor3 = THEME.Accent
+pageTeleport.Visible = false
+
+local layoutTP = Instance.new("UIListLayout", pageTeleport)
+layoutTP.Padding = UDim.new(0, 6)
+
+local pageConfiguracion = Instance.new("ScrollingFrame", mainFrame)
+pageConfiguracion.Size = UDim2.new(1, -140, 1, -64)
+pageConfiguracion.Position = UDim2.new(0, 130, 0, 34)
+pageConfiguracion.BackgroundTransparency = 1
+pageConfiguracion.BorderSizePixel = 0
+pageConfiguracion.ScrollBarThickness = 3
+pageConfiguracion.ScrollBarImageColor3 = THEME.Accent
+pageConfiguracion.Visible = false
+
+local layoutCfg = Instance.new("UIListLayout", pageConfiguracion)
+layoutCfg.Padding = UDim.new(0, 6)
+
+local tabs = {}
+local function crearTabButton(nombre, icono, paginaAsociada, activoInicial)
+	local btn = Instance.new("TextButton", sidebar)
+	btn.Size = UDim2.new(1, 0, 0, 32)
+	btn.BackgroundColor3 = activoInicial and THEME.BgCard or THEME.BgSidebar
+	btn.Text = " " .. icono .. " " .. nombre
+	btn.TextColor3 = activoInicial and THEME.Accent or THEME.TextSub
+	btn.Font = Enum.Font.RobotoMono
+	btn.TextSize = 10
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+	local stroke = Instance.new("UIStroke", btn)
+	stroke.Color = THEME.Accent
+	stroke.Thickness = 1
+	stroke.Enabled = activoInicial
+
+	table.insert(tabs, {Button = btn, Stroke = stroke, Page = paginaAsociada})
+
+	btn.MouseButton1Click:Connect(function()
+		for _, tabData in ipairs(tabs) do
+			local esActiva = (tabData.Button == btn)
+			tabData.Page.Visible = esActiva
+			tabData.Button.BackgroundColor3 = esActiva and THEME.BgCard or THEME.BgSidebar
+			tabData.Button.TextColor3 = esActiva and THEME.Accent or THEME.TextSub
+			tabData.Stroke.Enabled = esActiva
+		end
+	end)
+end
+
+crearTabButton("Movimiento", "🏃", pageMovimiento, true)
+crearTabButton("Teleport", "📍", pageTeleport, false)
+crearTabButton("Ajustes", "⚙️", pageConfiguracion, false)
+
+local tarjetasRegistradas = {}
+
+local function crearTarjetaBase(parent, titulo, sub)
+	local card = Instance.new("Frame", parent)
+	card.Size = UDim2.new(1, -6, 0, sub and 40 or 36)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+	local cardStroke = Instance.new("UIStroke", card)
+	cardStroke.Color = THEME.Border
+	cardStroke.Thickness = 1
+
+	if titulo then
+		local tLabel = Instance.new("TextLabel", card)
+		tLabel.Size = UDim2.new(1, -85, 0, 16)
+		tLabel.Position = UDim2.new(0, 10, 0, sub and 5 or 10)
+		tLabel.BackgroundTransparency = 1
+		tLabel.Text = titulo
+		tLabel.TextColor3 = THEME.TextMain
+		tLabel.Font = Enum.Font.RobotoMono
+		tLabel.TextSize = 10
+		tLabel.TextXAlignment = Enum.TextXAlignment.Left
+	end
+
+	if sub then
+		local sLabel = Instance.new("TextLabel", card)
+		sLabel.Size = UDim2.new(1, -85, 0, 12)
+		sLabel.Position = UDim2.new(0, 10, 0, 21)
+		sLabel.BackgroundTransparency = 1
+		sLabel.Text = sub
+		sLabel.TextColor3 = THEME.TextSub
+		sLabel.Font = Enum.Font.Gotham
+		sLabel.TextSize = 9
+		sLabel.TextXAlignment = Enum.TextXAlignment.Left
+	end
+
+	table.insert(tarjetasRegistradas, {Card = card, Stroke = cardStroke})
+	return card, cardStroke
+end
+
+local function crearToggle(parent, titulo, sub, colorActivo, callback)
+	colorActivo = colorActivo or THEME.Accent
+	local card, cardStroke = crearTarjetaBase(parent, titulo, sub)
+
+	local switchBg = Instance.new("TextButton", card)
+	switchBg.Size = UDim2.new(0, 40, 0, 20)
+	switchBg.Position = UDim2.new(1, -48, 0.5, -10)
+	switchBg.BackgroundColor3 = Color3.fromRGB(20, 26, 36)
+	switchBg.Text = ""
+	switchBg.AutoButtonColor = false
+	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(0, 5)
+
+	local switchStroke = Instance.new("UIStroke", switchBg)
+	switchStroke.Color = Color3.fromRGB(45, 60, 80)
+	switchStroke.Thickness = 1
+
+	local knob = Instance.new("Frame", switchBg)
+	knob.Size = UDim2.new(0, 14, 0, 14)
+	knob.Position = UDim2.new(0, 3, 0.5, -7)
+	knob.BackgroundColor3 = THEME.Accent
+	knob.BorderSizePixel = 0
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 4)
+
+	local estado = false
+
+	local function setEstado(nuevoEstado)
+		estado = nuevoEstado
+		if estado then
+			tween(switchBg, 0.2, {BackgroundColor3 = colorActivo})
+			switchStroke.Color = colorActivo
+			knob.BackgroundColor3 = Color3.fromRGB(15, 18, 24)
+			tween(knob, 0.2, {Position = UDim2.new(1, -17, 0.5, -7)})
+			tween(cardStroke, 0.2, {Color = colorActivo})
+		else
+			tween(switchBg, 0.2, {BackgroundColor3 = Color3.fromRGB(20, 26, 36)})
+			switchStroke.Color = Color3.fromRGB(45, 60, 80)
+			knob.BackgroundColor3 = THEME.Accent
+			tween(knob, 0.2, {Position = UDim2.new(0, 3, 0.5, -7)})
+			tween(cardStroke, 0.2, {Color = THEME.Border})
+		end
+		callback(estado)
+	end
+
+	switchBg.MouseButton1Click:Connect(function()
+		setEstado(not estado)
+	end)
+
+	return switchBg, setEstado
+end
+
+local function crearBoton(parent, texto, callback)
+	local card = Instance.new("Frame", parent)
+	card.Size = UDim2.new(1, -6, 0, 36)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+	local cardStroke = Instance.new("UIStroke", card)
+	cardStroke.Color = THEME.Border
+	cardStroke.Thickness = 1
+
+	local btn = Instance.new("TextButton", card)
+	btn.Size = UDim2.new(1, 0, 1, 0)
+	btn.BackgroundTransparency = 1
+	btn.Text = texto
+	btn.TextColor3 = THEME.TextMain
+	btn.Font = Enum.Font.RobotoMono
+	btn.TextSize = 10
+
+	btn.MouseButton1Click:Connect(function()
+		tween(card, 0.1, {BackgroundColor3 = THEME.Accent})
+		task.delay(0.1, function()
+			tween(card, 0.2, {BackgroundColor3 = THEME.BgCard})
+		end)
+		callback()
+	end)
+
+	table.insert(tarjetasRegistradas, {Card = card, Stroke = cardStroke})
+	return card
+end
+
+-- === OPCIONES DE MOVIMIENTO ===
+crearToggle(pageMovimiento, "Inf Jump", "Salto Infinit
