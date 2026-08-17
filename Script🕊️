@@ -1,0 +1,578 @@
+--[[
+    🤖 XZ SISTEMA TP - v8.6 Modo Robot Edition (Actualizado)
+    Design: Cybernetic / Multi-Theme Selector (Compact)
+    Features: Original text, Fast-load, Live Stats, Súper Velocidad Global, _xz_omegaop, Teclado Escapar (Insert / Backspace / F4), Servidor Info, Selector de Colores (Azul Celeste, Rojo Fuerte, Negro Café)
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Stats = game:GetService("Stats")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+
+-- === TEMAS DE COLOR DISPONIBLES ===
+local THEMES = {
+	Purpura = {
+		BgPrimary   = Color3.fromRGB(18, 14, 24),
+		BgSidebar   = Color3.fromRGB(12, 9, 16),
+		BgCard      = Color3.fromRGB(28, 22, 38),
+		BgCardHover = Color3.fromRGB(40, 32, 54),
+		Accent      = Color3.fromRGB(180, 0, 255),
+		Accent2     = Color3.fromRGB(255, 100, 220),
+		TextMain    = Color3.fromRGB(245, 230, 255),
+		TextSub     = Color3.fromRGB(155, 130, 180),
+		Border      = Color3.fromRGB(140, 0, 200)
+	},
+	AzulCeleste = {
+		BgPrimary   = Color3.fromRGB(14, 22, 30),
+		BgSidebar   = Color3.fromRGB(9, 15, 22),
+		BgCard      = Color3.fromRGB(22, 36, 48),
+		BgCardHover = Color3.fromRGB(32, 52, 68),
+		Accent      = Color3.fromRGB(0, 210, 255),
+		Accent2     = Color3.fromRGB(100, 240, 255),
+		TextMain    = Color3.fromRGB(230, 245, 255),
+		TextSub     = Color3.fromRGB(120, 160, 180),
+		Border      = Color3.fromRGB(0, 150, 200)
+	},
+	RojoFuerte = {
+		BgPrimary   = Color3.fromRGB(26, 12, 12),
+		BgSidebar   = Color3.fromRGB(18, 8, 8),
+		BgCard      = Color3.fromRGB(42, 20, 20),
+		BgCardHover = Color3.fromRGB(60, 30, 30),
+		Accent      = Color3.fromRGB(255, 30, 30),
+		Accent2     = Color3.fromRGB(255, 100, 100),
+		TextMain    = Color3.fromRGB(255, 230, 230),
+		TextSub     = Color3.fromRGB(180, 130, 130),
+		Border      = Color3.fromRGB(200, 0, 0)
+	},
+	NegroCafe = {
+		BgPrimary   = Color3.fromRGB(18, 16, 15),
+		BgSidebar   = Color3.fromRGB(12, 11, 10),
+		BgCard      = Color3.fromRGB(32, 28, 25),
+		BgCardHover = Color3.fromRGB(46, 40, 36),
+		Accent      = Color3.fromRGB(180, 120, 70),
+		Accent2     = Color3.fromRGB(220, 160, 110),
+		TextMain    = Color3.fromRGB(245, 240, 235),
+		TextSub     = Color3.fromRGB(160, 145, 135),
+		Border      = Color3.fromRGB(130, 90, 50)
+	}
+}
+
+local currentThemeKey = "Purpura"
+local THEME = THEMES[currentThemeKey]
+
+-- === ESTADO Y VARIABLES ===
+local pos1 = nil
+local bucle1, bucle2 = false, false
+local superVelGlobal = false
+local hilo1, hilo2 = nil, nil
+local panelAbierto = false
+local selectorColorAbierto = false
+local marcador = nil
+local rotacion = nil
+
+-- === GUI CONTENEDOR ===
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_SistemaTP_V8_Premium"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- === UTILIDADES UI ===
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+local function notificar(titulo, msg, tipo)
+	local color = THEME.Accent
+	local icon = "⚡"
+	if tipo == "success" then color = Color3.fromRGB(0, 255, 136); icon = "✨"
+	elseif tipo == "error" then color = Color3.fromRGB(255, 50, 75); icon = "🚨"
+	elseif tipo == "warning" then color = Color3.fromRGB(255, 200, 0); icon = "⚠️"
+	elseif tipo == "tp" then color = THEME.Accent2; icon = "📍"
+	end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 230, 0, 46)
+	toast.Position = UDim2.new(1, 20, 0.82, 0)
+	toast.BackgroundColor3 = THEME.BgCard
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 6)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.5
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -12, 0, 18)
+	t1.Position = UDim2.new(0, 10, 0, 5)
+	t1.BackgroundTransparency = 1
+	t1.Text = icon .. "  " .. string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.RobotoMono
+	t1.TextSize = 10
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -12, 0, 16)
+	t2.Position = UDim2.new(0, 10, 0, 23)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 10
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.35, {Position = UDim2.new(1, -250, 0.82, 0)}, Enum.EasingStyle.Back)
+	task.delay(2.5, function()
+		local out = tween(toast, 0.3, {Position = UDim2.new(1, 20, 0.82, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function quitarMarcador()
+	if rotacion then rotacion:Disconnect() rotacion = nil end
+	if marcador then marcador:Destroy() marcador = nil end
+end
+
+local function crearMarcador(cf, color)
+	quitarMarcador()
+	local model = Instance.new("Model")
+	model.Name = "XZ_TP_Marker_Premium"
+
+	local part = Instance.new("Part")
+	part.Size = Vector3.new(1.8, 1.8, 1.8)
+	part.CFrame = cf * CFrame.new(0, 2.8, 0)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Material = Enum.Material.Neon
+	part.Color = color
+	part.Transparency = 0.15
+	part.Parent = model
+
+	local mesh = Instance.new("SpecialMesh", part)
+	mesh.MeshType = Enum.MeshType.FileMesh
+	mesh.MeshId = "rbxassetid://10337144"
+	mesh.Scale = Vector3.new(1.4, 2.2, 1.4)
+
+	local ground = Instance.new("Part")
+	ground.Size = Vector3.new(0.6, 0.1, 0.6)
+	ground.CFrame = cf
+	ground.Anchored = true
+	ground.Transparency = 1
+	ground.CanCollide = false
+	ground.Parent = model
+
+	local a0 = Instance.new("Attachment", part)
+	local a1 = Instance.new("Attachment", ground)
+
+	local beam = Instance.new("Beam", part)
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.Color = ColorSequence.new(color, THEME.Accent2)
+	beam.Width0 = 1.0
+	beam.Width1 = 0.05
+	beam.FaceCamera = true
+
+	local hl = Instance.new("Highlight", model)
+	hl.FillColor = color
+	hl.OutlineColor = Color3.new(1,1,1)
+	hl.FillTransparency = 0.4
+
+	model.Parent = Workspace
+	marcador = model
+
+	local ang = 0
+	rotacion = RunService.RenderStepped:Connect(function(dt)
+		if part and part.Parent then
+			ang = ang + dt * 85
+			part.CFrame = (cf * CFrame.new(0, 2.8 + math.sin(os.clock()*3)*0.35, 0)) * CFrame.Angles(0, math.rad(ang), 0)
+		end
+	end)
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+-- ======================================================
+--  BOTÓN FLOTANTE MODO ROBOT
+-- ======================================================
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 44, 0, 44)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Text = "👑"
+btnAbrir.TextColor3 = THEME.Accent
+btnAbrir.Font = Enum.Font.GothamBold
+btnAbrir.TextSize = 20
+btnAbrir.Visible = true
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 8)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent
+strokeBtn.Thickness = 1.5
+
+-- ======================================================
+--  PANEL PRINCIPAL (COMPACTO: 420x280)
+-- ======================================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 420, 0, 280)
+mainFrame.Position = UDim2.new(0.5, -210, 0.5, -140)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = THEME.Border
+mainStroke.Thickness = 1.5
+
+-- --- BARRA SUPERIOR (HEADER) ---
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 32)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -75, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ _xz_omegaop"
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.RobotoMono
+titleLabel.TextSize = 11
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Botón selector de color en la barra superior
+local btnColorMenu = Instance.new("TextButton", topBar)
+btnColorMenu.Size = UDim2.new(0, 42, 0, 20)
+btnColorMenu.Position = UDim2.new(1, -76, 0.5, -10)
+btnColorMenu.BackgroundColor3 = THEME.BgCard
+btnColorMenu.Text = "🎨 Color"
+btnColorMenu.TextColor3 = THEME.Accent
+btnColorMenu.Font = Enum.Font.RobotoMono
+btnColorMenu.TextSize = 9
+Instance.new("UICorner", btnColorMenu).CornerRadius = UDim.new(0, 4)
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 22, 0, 22)
+btnCerrar.Position = UDim2.new(1, -28, 0.5, -11)
+btnCerrar.BackgroundColor3 = THEME.BgCard
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextSub
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 10
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 5)
+
+-- --- MINI PANEL FLOTANTE PARA SELECCIONAR COLORES ---
+local colorPickerPanel = Instance.new("Frame", mainFrame)
+colorPickerPanel.Size = UDim2.new(0, 130, 0, 115)
+colorPickerPanel.Position = UDim2.new(1, -140, 0, 36)
+colorPickerPanel.BackgroundColor3 = THEME.BgSidebar
+colorPickerPanel.BorderSizePixel = 0
+colorPickerPanel.Visible = false
+colorPickerPanel.ZIndex = 5
+Instance.new("UICorner", colorPickerPanel).CornerRadius = UDim.new(0, 6)
+local cpStroke = Instance.new("UIStroke", colorPickerPanel)
+cpStroke.Color = THEME.Border
+cpStroke.Thickness = 1.2
+
+local cpLayout = Instance.new("UIListLayout", colorPickerPanel)
+cpLayout.Padding = UDim.new(0, 4)
+cpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+cpLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+local function crearBotonColor(nombreTema, textoBtn, colorBtn)
+	local b = Instance.new("TextButton", colorPickerPanel)
+	b.Size = UDim2.new(1, -12, 0, 22)
+	b.BackgroundColor3 = THEME.BgCard
+	b.Text = textoBtn
+	b.TextColor3 = colorBtn
+	b.Font = Enum.Font.RobotoMono
+	b.TextSize = 9
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+	
+	b.MouseButton1Click:Connect(function()
+		currentThemeKey = nombreTema
+		THEME = THEMES[currentThemeKey]
+		colorPickerPanel.Visible = false
+		selectorColorAbierto = false
+		notificar("Tema", "Color cambiado correctamente", "success")
+		-- Recargar interfaz actualizando colores visuales básicos
+		mainFrame.BackgroundColor3 = THEME.BgPrimary
+		mainStroke.Color = THEME.Border
+		btnAbrir.BackgroundColor3 = THEME.BgSidebar
+		strokeBtn.Color = THEME.Accent
+		btnAbrir.TextColor3 = THEME.Accent
+		titleLabel.TextColor3 = THEME.TextMain
+	end)
+end
+
+crearBotonColor("Purpura", "🟣 Púrpura", Color3.fromRGB(180, 0, 255))
+crearBotonColor("AzulCeleste", "🔵 Azul Celeste", Color3.fromRGB(0, 210, 255))
+crearBotonColor("RojoFuerte", "🔴 Rojo Fuerte", Color3.fromRGB(255, 50, 50))
+crearBotonColor("NegroCafe", "⚫ Negro Café", Color3.fromRGB(180, 120, 70))
+
+btnColorMenu.MouseButton1Click:Connect(function()
+	selectorColorAbierto = not selectorColorAbierto
+	colorPickerPanel.Visible = selectorColorAbierto
+end)
+
+-- --- BARRA LATERAL (SIDEBAR) ---
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 110, 1, -64)
+sidebar.Position = UDim2.new(0, 10, 0, 32)
+sidebar.BackgroundColor3 = THEME.BgSidebar
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 6)
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.Padding = UDim.new(0, 5)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function crearTab(nombre, icono, activo)
+	local btn = Instance.new("TextButton", sidebar)
+	btn.Size = UDim2.new(1, 0, 0, 28)
+	btn.BackgroundTransparency = activo and 0 or 1
+	btn.BackgroundColor3 = THEME.BgCard
+	btn.Text = " " .. icono .. " " .. nombre
+	btn.TextColor3 = activo and THEME.Accent or THEME.TextSub
+	btn.Font = Enum.Font.RobotoMono
+	btn.TextSize = 10
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+	if activo then
+		local stroke = Instance.new("UIStroke", btn)
+		stroke.Color = THEME.Accent
+		stroke.Thickness = 1
+	end
+	return btn
+end
+
+crearTab("Teleport", "📍", true)
+
+-- --- FOOTER STATUS BAR (EN VIVO CON JUGADORES EN EL SERVIDOR) ---
+local footer = Instance.new("Frame", mainFrame)
+footer.Size = UDim2.new(1, -20, 0, 22)
+footer.Position = UDim2.new(0, 10, 1, -26)
+footer.BackgroundColor3 = THEME.BgSidebar
+footer.BorderSizePixel = 0
+Instance.new("UICorner", footer).CornerRadius = UDim.new(0, 5)
+
+local statsLabel = Instance.new("TextLabel", footer)
+statsLabel.Size = UDim2.new(1, -10, 1, 0)
+statsLabel.Position = UDim2.new(0, 8, 0, 0)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "FPS: --  |  Ping: -- ms  |  Servidor: -- plrs"
+statsLabel.TextColor3 = THEME.TextSub
+statsLabel.Font = Enum.Font.RobotoMono
+statsLabel.TextSize = 9
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+RunService.RenderStepped:Connect(function(dt)
+	local fps = math.floor(1 / dt)
+	local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+	local numPlayers = #Players:GetPlayers()
+	statsLabel.Text = string.format("🟢 FPS: %d  |  ⚡ Ping: %d ms  |  👥 Servidor: %d", fps, ping, numPlayers)
+end)
+
+-- --- CONTENEDOR CONTENIDO ---
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -135, 1, -64)
+contentContainer.Position = UDim2.new(0, 125, 0, 32)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 2
+contentContainer.ScrollBarImageColor3 = THEME.Accent
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 6)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- === CONSTRUCTOR DE TARJETAS Y TOGGLES ===
+local function crearTarjetaBase(titulo, sub)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -4, 0, 40)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+	local cardStroke = Instance.new("UIStroke", card)
+	cardStroke.Color = THEME.Border
+	cardStroke.Thickness = 1
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(1, -75, 0, 15)
+	tLabel.Position = UDim2.new(0, 10, 0, 5)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.RobotoMono
+	tLabel.TextSize = 10
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local sLabel = Instance.new("TextLabel", card)
+	sLabel.Size = UDim2.new(1, -75, 0, 12)
+	sLabel.Position = UDim2.new(0, 10, 0, 21)
+	sLabel.BackgroundTransparency = 1
+	sLabel.Text = sub
+	sLabel.TextColor3 = THEME.TextSub
+	sLabel.Font = Enum.Font.Gotham
+	sLabel.TextSize = 9
+	sLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	return card
+end
+
+local function crearTarjetaBoton(titulo, sub)
+	local card = crearTarjetaBase(titulo, sub)
+	local btn = Instance.new("TextButton", card)
+	btn.Size = UDim2.new(0, 60, 0, 24)
+	btn.Position = UDim2.new(1, -68, 0.5, -12)
+	btn.BackgroundColor3 = THEME.BgSidebar
+	btn.Text = "SET"
+	btn.TextColor3 = THEME.Accent
+	btn.Font = Enum.Font.RobotoMono
+	btn.TextSize = 9
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+	local btnStroke = Instance.new("UIStroke", btn)
+	btnStroke.Color = THEME.Accent
+	btnStroke.Thickness = 1
+
+	hover(btn, THEME.BgSidebar, THEME.BgCardHover)
+
+	return card, btn
+end
+
+-- --- COMPONENTE TOGGLE SWITCH ---
+local function crearTarjetaToggle(titulo, sub, colorActivo)
+	colorActivo = colorActivo or THEME.Accent
+	local card = crearTarjetaBase(titulo, sub)
+
+	local switchBg = Instance.new("TextButton", card)
+	switchBg.Size = UDim2.new(0, 40, 0, 22)
+	switchBg.Position = UDim2.new(1, -48, 0.5, -11)
+	switchBg.BackgroundColor3 = THEME.BgSidebar
+	switchBg.Text = ""
+	switchBg.AutoButtonColor = false
+	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(0, 5)
+
+	local switchStroke = Instance.new("UIStroke", switchBg)
+	switchStroke.Color = THEME.Border
+	switchStroke.Thickness = 1
+
+	local knob = Instance.new("Frame", switchBg)
+	knob.Size = UDim2.new(0, 14, 0, 16)
+	knob.Position = UDim2.new(0, 3, 0.5, -8)
+	knob.BackgroundColor3 = colorActivo
+	knob.BorderSizePixel = 0
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 4)
+
+	local estado = false
+
+	local function setEstado(nuevoEstado)
+		estado = nuevoEstado
+		if estado then
+			tween(switchBg, 0.22, {BackgroundColor3 = colorActivo})
+			switchStroke.Color = colorActivo
+			knob.BackgroundColor3 = THEME.BgPrimary
+			tween(knob, 0.22, {Position = UDim2.new(1, -17, 0.5, -8)})
+		else
+			tween(switchBg, 0.22, {BackgroundColor3 = THEME.BgSidebar})
+			switchStroke.Color = THEME.Border
+			knob.BackgroundColor3 = colorActivo
+			tween(knob, 0.22, {Position = UDim2.new(0, 3, 0.5, -8)})
+		end
+	end
+
+	return card, switchBg, setEstado
+end
+
+local function crearTarjetaIntervalo(textoLabel, valorInicial)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -4, 0, 30)
+	card.BackgroundColor3 = THEME.BgSidebar
+	card.BorderSizePixel = 0
+	card.Visible = false
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 5)
+
+	local lbl = Instance.new("TextLabel", card)
+	lbl.Size = UDim2.new(0, 140, 1, 0)
+	lbl.Position = UDim2.new(0, 10, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = textoLabel
+	lbl.TextColor3 = THEME.TextSub
+	lbl.Font = Enum.Font.RobotoMono
+	lbl.TextSize = 9
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	local box = Instance.new("TextBox", card)
+	box.Size = UDim2.new(0, 45, 0, 20)
+	box.Position = UDim2.new(1, -52, 0.5, -10)
+	box.BackgroundColor3 = THEME.BgCard
+	box.Text = valorInicial
+	box.TextColor3 = THEME.Accent
+	box.Font = Enum.Font.RobotoMono
+	box.TextSize = 10
+	box.ClearTextOnFocus = false
+	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
+
+	local boxStroke = Instance.new("UIStroke", box)
+	boxStroke.Color = THEME.Border
+	boxStroke.Thickness = 1
+
+	box:GetPropertyChangedSignal("Text"):Connect(function()
+		box.Text = box.Text:gsub("[^%d%.]", "")
+	end)
+
+	return card, box
+end
+
+-- === ELEMENTOS GENERALES / SÚPER VELOCIDAD GLOBAL ===
+local _, btnSuperVelGlobal, setSuperVelGlobal = crearTarjetaToggle("Súper Velocidad Global", "Modo ultrarrápido para todos los mundos y tps", Color3.fromRGB(0, 255, 136))
+
+-- === ELEMENTOS TP 1 ===
+local _, btnG1 = crearTarjetaBoton("Guardar TP 1", "Registra tu ubicación actual")
+local _, btnB1, setSwitch1 = crearTarjetaToggle("Auto TP 1", "Teletransporte cíclico 1")
+local fI1, input1 = crearTarjetaIntervalo("⏱️ Intervalo TP 1 (s):", "1.0")
+
+-- === ELEMENTOS MUNDO 5 ===
+local _, btnB2, setSwitch2 = crearTarjetaToggle("Mundo 5", "W5 Stage 3 NormalWin")
+local fI2, input2 = crearTarjetaIntervalo("⏱️ Intervalo Mundo 5 (s):", "1.0")
+
+contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	contentContainer.CanvasSize = UDim2.new(0, 0, 0, contentLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- ======================================================
+--  LÓGICA TP Y TOGGLE
+-- ======================================================
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if not panelAbierto then
+		colorPickerPanel.Visible = false
+		selectorColorAbierto = false
+	end
+	
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		twe
