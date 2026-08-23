@@ -1,0 +1,1155 @@
+--[[
+    🤖 XZ SISTEMA TP - v17.0 Modo Robot Edition (Red & Purple Cyber)
+    Design: Dark Purple & Neon Red Cybernetic Theme
+    Features: Direct TP (No Proximity Needed), World 5 Target Fix, 7s Banner Notice, Global TP Speed Control
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Stats = game:GetService("Stats")
+local LocalPlayer = Players.LocalPlayer
+
+-- === TEMA ROJO Y MORADO PÚRPURA ===
+local THEME = {
+	BgPrimary   = Color3.fromRGB(18, 12, 24),     -- Púrpura Oscuro Base
+	BgSidebar   = Color3.fromRGB(12, 8, 18),      -- Púrpura Profundo
+	BgCard      = Color3.fromRGB(30, 20, 42),     -- Tarjetas Moradas
+	BgCardHover = Color3.fromRGB(48, 28, 64),
+	Accent      = Color3.fromRGB(175, 40, 255),   -- Púrpura Neón
+	AccentGlow  = Color3.fromRGB(215, 100, 255),
+	Accent2     = Color3.fromRGB(255, 35, 75),    -- Rojo Neón
+	Success     = Color3.fromRGB(0, 255, 136),
+	Warning     = Color3.fromRGB(255, 170, 0),
+	Error       = Color3.fromRGB(255, 35, 75),    -- Rojo Error
+	TextMain    = Color3.fromRGB(250, 235, 255),
+	TextSub     = Color3.fromRGB(175, 145, 195),
+	Border      = Color3.fromRGB(140, 30, 210)    -- Borde Morado
+}
+
+-- === ESTADO Y VARIABLES ===
+local panelAbierto = false
+
+-- === GUI CONTENEDOR ===
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_SistemaTP_V17_Compact"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- === UTILIDADES UI ===
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+local function notificar(titulo, msg, tipo, duracion)
+	duracion = duracion or 3
+	local color = THEME.Accent
+	local icon = "⚡"
+	if tipo == "success" then color = THEME.Success; icon = "✨"
+	elseif tipo == "error" then color = THEME.Error; icon = "🚨"
+	elseif tipo == "warning" then color = THEME.Accent2; icon = "⚠️"
+	elseif tipo == "tp" then color = THEME.Accent2; icon = "📍"
+	end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 240, 0, 52)
+	toast.Position = UDim2.new(1, 20, 0.78, 0)
+	toast.BackgroundColor3 = THEME.BgCard
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 6)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.4
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -10, 0, 16)
+	t1.Position = UDim2.new(0, 8, 0, 4)
+	t1.BackgroundTransparency = 1
+	t1.Text = icon .. "  " .. string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.RobotoMono
+	t1.TextSize = 10
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -12, 0, 28)
+	t2.Position = UDim2.new(0, 8, 0, 20)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 8
+	t2.TextWrapped = true
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.35, {Position = UDim2.new(1, -255, 0.78, 0)}, Enum.EasingStyle.Back)
+	task.delay(duracion, function()
+		local out = tween(toast, 0.3, {Position = UDim2.new(1, 20, 0.78, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+-- ======================================================
+--  BOTÓN FLOTANTE MODO ROBOT
+-- ======================================================
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 42, 0, 42)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Text = "👑"
+btnAbrir.TextColor3 = THEME.Accent2
+btnAbrir.Font = Enum.Font.GothamBold
+btnAbrir.TextSize = 18
+btnAbrir.Visible = true
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 8)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent2
+strokeBtn.Thickness = 1.5
+
+-- ======================================================
+--  PANEL PRINCIPAL COMPACTO (380x260)
+-- ======================================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 380, 0, 260)
+mainFrame.Position = UDim2.new(0.5, -190, 0.5, -130)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = THEME.Border
+mainStroke.Thickness = 1.2
+
+-- --- BARRA SUPERIOR (HEADER) ---
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 32)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ XZ HUB PREMIUM  |  v17.0"
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.RobotoMono
+titleLabel.TextSize = 11
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 22, 0, 22)
+btnCerrar.Position = UDim2.new(1, -27, 0.5, -11)
+btnCerrar.BackgroundColor3 = Color3.fromRGB(35, 18, 30)
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextSub
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 10
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 5)
+hover(btnCerrar, Color3.fromRGB(35, 18, 30), THEME.Error)
+
+-- --- BARRA LATERAL (SIDEBAR) ---
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 95, 1, -60)
+sidebar.Position = UDim2.new(0, 8, 0, 32)
+sidebar.BackgroundColor3 = THEME.BgSidebar
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 6)
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function crearTab(nombre, icono, activo)
+	local btn = Instance.new("TextButton", sidebar)
+	btn.Size = UDim2.new(1, 0, 0, 28)
+	btn.BackgroundTransparency = activo and 0 or 1
+	btn.BackgroundColor3 = THEME.BgCard
+	btn.Text = " " .. icono .. " " .. nombre
+	btn.TextColor3 = activo and THEME.Accent or THEME.TextSub
+	btn.Font = Enum.Font.RobotoMono
+	btn.TextSize = 10
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+	if activo then
+		local stroke = Instance.new("UIStroke", btn)
+		stroke.Color = THEME.Accent
+		stroke.Thickness = 1
+	end
+	return btn
+end
+
+crearTab("Teleport", "📍", true)
+
+-- --- FOOTER STATUS BAR (EN VIVO) ---
+local footer = Instance.new("Frame", mainFrame)
+footer.Size = UDim2.new(1, -16, 0, 20)
+footer.Position = UDim2.new(0, 8, 1, -24)
+footer.BackgroundColor3 = THEME.BgSidebar
+footer.BorderSizePixel = 0
+Instance.new("UICorner", footer).CornerRadius = UDim.new(0, 5)
+
+local statsLabel = Instance.new("TextLabel", footer)
+statsLabel.Size = UDim2.new(1, -12, 1, 0)
+statsLabel.Position = UDim2.new(0, 6, 0, 0)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "FPS: -- | Ping: -- ms | User: " .. LocalPlayer.Name
+statsLabel.TextColor3 = THEME.TextSub
+statsLabel.Font = Enum.Font.RobotoMono
+statsLabel.TextSize = 9
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+RunService.RenderStepped:Connect(function(dt)
+	local fps = math.floor(1 / dt)
+	local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+	statsLabel.Text = string.format("🟢 FPS: %d | ⚡ Ping: %d ms | 👤 %s", fps, ping, LocalPlayer.DisplayName)
+end)
+
+-- --- CONTENEDOR CONTENIDO ---
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -115, 1, -60)
+contentContainer.Position = UDim2.new(0, 108, 0, 32)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 2
+contentContainer.ScrollBarImageColor3 = THEME.Accent
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 6)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- === CONFIGURACIÓN GLOBAL DE VELOCIDAD DE TP ===
+local cardVelocidad = Instance.new("Frame", contentContainer)
+cardVelocidad.Size = UDim2.new(1, -4, 0, 32)
+cardVelocidad.BackgroundColor3 = THEME.BgSidebar
+cardVelocidad.BorderSizePixel = 0
+Instance.new("UICorner", cardVelocidad).CornerRadius = UDim.new(0, 5)
+
+local cardVelStroke = Instance.new("UIStroke", cardVelocidad)
+cardVelStroke.Color = THEME.Accent
+cardVelStroke.Thickness = 1
+
+local lblVel = Instance.new("TextLabel", cardVelocidad)
+lblVel.Size = UDim2.new(0, 180, 1, 0)
+lblVel.Position = UDim2.new(0, 8, 0, 0)
+lblVel.BackgroundTransparency = 1
+lblVel.Text = "⚡ Velocidad TP Global (seg):"
+lblVel.TextColor3 = THEME.TextMain
+lblVel.Font = Enum.Font.RobotoMono
+lblVel.TextSize = 9
+lblVel.TextXAlignment = Enum.TextXAlignment.Left
+
+local inputVelocidadGlobal = Instance.new("TextBox", cardVelocidad)
+inputVelocidadGlobal.Size = UDim2.new(0, 45, 0, 20)
+inputVelocidadGlobal.Position = UDim2.new(1, -50, 0.5, -10)
+inputVelocidadGlobal.BackgroundColor3 = THEME.BgCard
+inputVelocidadGlobal.Text = "0.5"
+inputVelocidadGlobal.TextColor3 = THEME.AccentGlow
+inputVelocidadGlobal.Font = Enum.Font.RobotoMono
+inputVelocidadGlobal.TextSize = 9
+inputVelocidadGlobal.ClearTextOnFocus = false
+Instance.new("UICorner", inputVelocidadGlobal).CornerRadius = UDim.new(0, 4)
+
+local boxVelStroke = Instance.new("UIStroke", inputVelocidadGlobal)
+boxVelStroke.Color = THEME.Border
+boxVelStroke.Thickness = 1
+
+-- === CONSTRUCTOR DE TARJETAS Y TOGGLES ===
+local function crearTarjetaBase(titulo, sub)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -4, 0, 38)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+	local cardStroke = Instance.new("UIStroke", card)
+	cardStroke.Color = THEME.Border
+	cardStroke.Thickness = 1
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(1, -55, 0, 14)
+	tLabel.Position = UDim2.new(0, 8, 0, 4)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.RobotoMono
+	tLabel.TextSize = 10
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local sLabel = Instance.new("TextLabel", card)
+	sLabel.Size = UDim2.new(1, -55, 0, 12)
+	sLabel.Position = UDim2.new(0, 8, 0, 18)
+	sLabel.BackgroundTransparency = 1
+	sLabel.Text = sub
+	sLabel.TextColor3 = THEME.TextSub
+	sLabel.Font = Enum.Font.Gotham
+	sLabel.TextSize = 8
+	sLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	return card
+end
+
+local function crearTarjetaToggle(titulo, sub, colorActivo)
+	colorActivo = colorActivo or THEME.Accent
+	local card = crearTarjetaBase(titulo, sub)
+
+	local switchBg = Instance.new("TextButton", card)
+	switchBg.Size = UDim2.new(0, 38, 0, 20)
+	switchBg.Position = UDim2.new(1, -44, 0.5, -10)
+	switchBg.BackgroundColor3 = Color3.fromRGB(24, 15, 32)
+	switchBg.Text = ""
+	switchBg.AutoButtonColor = false
+	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(0, 5)
+
+	local switchStroke = Instance.new("UIStroke", switchBg)
+	switchStroke.Color = Color3.fromRGB(70, 30, 90)
+	switchStroke.Thickness = 1
+
+	local knob = Instance.new("Frame", switchBg)
+	knob.Size = UDim2.new(0, 14, 0, 14)
+	knob.Position = UDim2.new(0, 3, 0.5, -7)
+	knob.BackgroundColor3 = THEME.Accent
+	knob.BorderSizePixel = 0
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 3)
+
+	local estado = false
+
+	local function setEstado(nuevoEstado)
+		estado = nuevoEstado
+		if estado then
+			tween(switchBg, 0.22, {BackgroundColor3 = colorActivo})
+			switchStroke.Color = colorActivo
+			knob.BackgroundColor3 = Color3.fromRGB(18, 12, 24)
+			tween(knob, 0.22, {Position = UDim2.new(1, -17, 0.5, -7)})
+		else
+			tween(switchBg, 0.22, {BackgroundColor3 = Color3.fromRGB(24, 15, 32)})
+			switchStroke.Color = Color3.fromRGB(70, 30, 90)
+			knob.BackgroundColor3 = THEME.Accent
+			tween(knob, 0.22, {Position = UDim2.new(0, 3, 0.5, -7)})
+		end
+	end
+
+	return card, switchBg, setEstado
+end
+
+local function crearTarjetaIntervalo()
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -4, 0, 28)
+	card.BackgroundColor3 = THEME.BgSidebar
+	card.BorderSizePixel = 0
+	card.Visible = false
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 5)
+
+	local lbl = Instance.new("TextLabel", card)
+	lbl.Size = UDim2.new(0, 130, 1, 0)
+	lbl.Position = UDim2.new(0, 8, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "⏱️ Intervalo M (seg):"
+	lbl.TextColor3 = THEME.TextSub
+	lbl.Font = Enum.Font.RobotoMono
+	lbl.TextSize = 9
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	local box = Instance.new("TextBox", card)
+	box.Size = UDim2.new(0, 42, 0, 18)
+	box.Position = UDim2.new(1, -48, 0.5, -9)
+	box.BackgroundColor3 = THEME.BgCard
+	box.Text = inputVelocidadGlobal.Text
+	box.TextColor3 = THEME.Accent
+	box.Font = Enum.Font.RobotoMono
+	box.TextSize = 9
+	box.ClearTextOnFocus = false
+	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 3)
+
+	local boxStroke = Instance.new("UIStroke", box)
+	boxStroke.Color = THEME.Border
+	boxStroke.Thickness = 1
+
+	box:GetPropertyChangedSignal("Text"):Connect(function()
+		box.Text = box.Text:gsub("[^%d%.]", "")
+	end)
+
+	return card, box
+end
+
+-- ======================================================
+--  LÓGICA TP PARA MUNDOS 1 AL 5 (DIRECTO SIN ACERCARSE)
+-- ======================================================
+local function getRoot()
+	local c = LocalPlayer.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function obtenerPosicionFinalZona(numMundo)
+	local ok, res = pcall(function()
+		local map = Workspace:FindFirstChild("Map")
+		if not map then return nil end
+
+		-- RUTA ESPECÍFICA PARA MUNDO 5:
+		if numMundo == 5 then
+			local world5 = map:FindFirstChild("World5") or map:FindFirstChild("World 5")
+			if world5 then
+				local stages = world5:FindFirstChild("Stages")
+				if stages then
+					local stage6 = stages:FindFirstChild("Stage6")
+					if stage6 then
+						local normalWin = stage6:FindFirstChild("NormalWin")
+						if normalWin then
+							local uiObj = normalWin:FindFirstChild("UI") or normalWin
+							if uiObj:IsA("Model") then return uiObj:GetPivot() end
+							if uiObj:IsA("BasePart") then return uiObj.CFrame end
+						end
+					end
+				end
+			end
+		end
+
+		-- RUTA GENERAL PARA OTROS MUNDOS:
+		local world = map:FindFirstChild("World" .. numMundo) or map:FindFirstChild("World " .. numMundo)
+		if not world then return nil end
+
+		local normalWin = world:FindFirstChild("NormalWin", true)
+		local uiObj = (normalWin and normalWin:FindFirstChild("UI")) or normalWin or world:FindFirstChild("UI", true)
+
+		if uiObj then
+			if uiObj:IsA("Model") then
+				return uiObj:GetPivot()
+			elseif uiObj:IsA("BasePart") then
+				return uiObj.CFrame
+			end
+		end
+		return nil
+	end)
+
+	if ok and res then
+		return res + Vector3.new(0, 3, 0)
+	end
+	return nil
+end
+
+local mundosData = {}
+
+local function desactivarOtrosMundos(idxExcluido)
+	for i = 1, 5 do
+		if i ~= idxExcluido and mundosData[i] then
+			if mundosData[i].bucle then
+				mundosData[i].bucle = false
+				mundosData[i].setSwitch(false)
+				mundosData[i].fI.Visible = false
+				if mundosData[i].hilo then
+					task.cancel(mundosData[i].hilo)
+					mundosData[i].hilo = nil
+				end
+			end
+		end
+	end
+end
+
+-- Generar tarjetas de Mundo 1 a Mundo 5
+for i = 1, 5 do
+	local colorTema = (i % 2 == 0) and THEME.Accent2 or THEME.Accent
+	local card, switchBtn, setSwitch = crearTarjetaToggle("Mundo " .. i, "Final Zona Directo", colorTema)
+	local fI, input = crearTarjetaIntervalo()
+
+	mundosData[i] = {
+		bucle = false,
+		hilo = nil,
+		setSwitch = setSwitch,
+		fI = fI,
+		input = input
+	}
+
+	switchBtn.MouseButton1Click:Connect(function()
+		local data = mundosData[i]
+		
+		data.bucle = not data.bucle
+		setSwitch(data.bucle)
+
+		if data.bucle then
+			desactivarOtrosMundos(i)
+			data.fI.Visible = true
+
+			data.hilo = task.spawn(function()
+				while data.bucle do
+					local root = getRoot()
+					local pos = obtenerPosicionFinalZona(i)
+					if root and pos then
+						root.CFrame = pos
+					end
+
+					local t = tonumber(data.input.Text) or tonumber(inputVelocidadGlobal.Text) or 0.5
+					if t < 0.05 then t = 0.05 end
+					local pasos = math.max(1, math.floor(t * 10))
+
+					for _ = pasos, 1, -1 do
+						if not data.bucle then break end
+						task.wait(t / pasos)
+					end
+				end
+			end)
+
+			notificar("Auto TP M" .. i, "TP Directo Activado", "success", 3)
+		else
+			data.fI.Visible = false
+			if data.hilo then
+				task.cancel(data.hilo)
+				data.hilo = nil
+			end
+			notificar("Auto TP M" .. i, "Desactivado", "warning", 3)
+		end
+	end)
+end
+
+-- Sincronizar velocidad global con cada mundo
+inputVelocidadGlobal:GetPropertyChangedSignal("Text"):Connect(function()
+	inputVelocidadGlobal.Text = inputVelocidadGlobal.Text:gsub("[^%d%.]", "")
+	local val = inputVelocidadGlobal.Text
+	for i = 1, 5 do
+		if mundosData[i] and mundosData[i].input then
+			mundosData[i].input.Text = val
+		end
+	end
+end)
+
+contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	contentContainer.CanvasSize = UDim2.new(0, 0, 0, contentLayout.AbsoluteContentSize.Y + 6)
+end)
+
+-- ======================================================
+--  LÓGICA ABRIR/CERRAR PANEL
+-- ======================================================
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		tween(mainFrame, 0.35, {
+			Size = UDim2.new(0, 380, 0, 260),
+			Position = UDim2.new(0.5, -190, 0.5, -130)
+		}, Enum.EasingStyle.Back)
+	else
+		local a = tween(mainFrame, 0.25, {
+			Size = UDim2.new(0, 0, 0, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function()
+			if not panelAbierto then mainFrame.Visible = false end
+		end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+
+-- ======================================================
+--  EJECUCIÓN DIRECTA Y AVISO DE CREADOR (7 SEG)
+-- ======================================================
+togglePanel()
+notificar(
+	"XZ HUB v17 - CREADOR", 
+	"Para que funcione el Auto TP de los mundos debes acercarte donde está 'Jugar' de las etapas. (Ver Video Tutorial)", 
+	"warning", 
+	10
+)
+--[[
+    ⚡ XZ SISTEMA MOVEMENT - PRO HUB EDITION (v7.0)
+    Diseño visual avanzado tipo Orion/Rayfield + Carga Inmediata + Stats Widget
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+local LocalPlayer = Players.LocalPlayer
+
+-- === TEMATIZACIÓN PREMIUM (NEON DARK) ===
+local THEME = {
+	BgPrimary     = Color3.fromRGB(15, 15, 20),
+	BgSidebar     = Color3.fromRGB(22, 22, 28),
+	BgCard        = Color3.fromRGB(28, 29, 38),
+	BgCardHover   = Color3.fromRGB(35, 36, 48),
+	Accent        = Color3.fromRGB(0, 230, 153),   -- Verde Neón Emerald
+	AccentDark    = Color3.fromRGB(0, 120, 80),
+	TextMain      = Color3.fromRGB(245, 245, 250),
+	TextSub       = Color3.fromRGB(140, 145, 160),
+	Border        = Color3.fromRGB(40, 42, 55),
+	Error         = Color3.fromRGB(255, 70, 85)
+}
+
+-- === VARIABLES DE CONTROL ===
+local currentWalkSpeed = 16
+local currentJumpHeight = 7
+local infJumpEnabled = false
+local noClipEnabled = false
+
+local panelAbierto = false
+local noClipConnection = nil
+local infJumpConnection = nil
+
+-- === GUI BASE ===
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_Movement_v7_Pro"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- === UTILIDADES DE ANIMACIÓN Y MOVIMIENTO ===
+local function tween(obj, duration, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local anim = TweenService:Create(obj, TweenInfo.new(duration, style, dir), props)
+	anim:Play()
+	return anim
+end
+
+local function makeDraggable(guiObject)
+	local dragging, dragInput, dragStart, startPos
+
+	guiObject.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = guiObject.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	guiObject.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			tween(guiObject, 0.08, {
+				Position = UDim2.new(
+					startPos.X.Scale, startPos.X.Offset + delta.X,
+					startPos.Y.Scale, startPos.Y.Offset + delta.Y
+				)
+			}, Enum.EasingStyle.Linear)
+		end
+	end)
+end
+
+local function getCharacter()
+	return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+
+local function getHumanoid()
+	local char = getCharacter()
+	return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+-- ======================================================
+--  SISTEMA DE NOTIFICACIONES (TOAST NOTIFICATIONS)
+-- ======================================================
+local notifContainer = Instance.new("Frame", screenGui)
+notifContainer.Size = UDim2.new(0, 260, 1, 0)
+notifContainer.Position = UDim2.new(1, -270, 0, 15)
+notifContainer.BackgroundTransparency = 1
+
+local notifLayout = Instance.new("UIListLayout", notifContainer)
+notifLayout.SortOrder = Enum.SortOrder.LayoutOrder
+notifLayout.Padding = UDim.new(0, 8)
+notifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+
+local function notify(title, desc)
+	local card = Instance.new("Frame", notifContainer)
+	card.Size = UDim2.new(1, 0, 0, 48)
+	card.BackgroundColor3 = THEME.BgSidebar
+	card.Position = UDim2.new(1, 100, 0, 0)
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke", card)
+	stroke.Color = THEME.Accent
+	stroke.Thickness = 1.2
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(1, -16, 0, 18)
+	tLabel.Position = UDim2.new(0, 12, 0, 6)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = title
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.GothamBold
+	tLabel.TextSize = 11
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local dLabel = Instance.new("TextLabel", card)
+	dLabel.Size = UDim2.new(1, -16, 0, 14)
+	dLabel.Position = UDim2.new(0, 12, 0, 24)
+	dLabel.BackgroundTransparency = 1
+	dLabel.Text = desc
+	dLabel.TextColor3 = THEME.TextSub
+	dLabel.Font = Enum.Font.Gotham
+	dLabel.TextSize = 9
+	dLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(card, 0.4, {Position = UDim2.new(0, 0, 0, 0)}, Enum.EasingStyle.Back)
+
+	task.delay(3, function()
+		local a = tween(card, 0.3, {Position = UDim2.new(1, 50, 0, 0)}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function() card:Destroy() end)
+	end)
+end
+
+-- ======================================================
+--  BOTÓN FLOTANTE (AVATAR DEL JUGADOR)
+-- ======================================================
+local btnAbrir = Instance.new("ImageButton")
+btnAbrir.Size = UDim2.new(0, 50, 0, 50)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.45, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.AutoButtonColor = false
+btnAbrir.Visible = false
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 12)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent
+strokeBtn.Thickness = 1.5
+
+-- Cargar la foto del personaje en segundo plano
+task.spawn(function()
+	local content, _ = Players:GetUserThumbnailAsync(
+		LocalPlayer.UserId,
+		Enum.ThumbnailType.HeadShot,
+		Enum.ThumbnailSize.Size150x150
+	)
+	btnAbrir.Image = content
+end)
+
+makeDraggable(btnAbrir)
+
+btnAbrir.MouseEnter:Connect(function() tween(btnAbrir, 0.2, {Size = UDim2.new(0, 54, 0, 54)}) end)
+btnAbrir.MouseLeave:Connect(function() tween(btnAbrir, 0.2, {Size = UDim2.new(0, 50, 0, 50)}) end)
+
+-- ======================================================
+--  PANEL PRINCIPAL
+-- ======================================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 530, 0, 350)
+mainFrame.Position = UDim2.new(0.5, -265, 0.5, -175)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = THEME.Border
+mainStroke.Thickness = 1.5
+
+makeDraggable(mainFrame)
+
+-- Top Header Bar
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 42)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -60, 1, 0)
+titleLabel.Position = UDim2.new(0, 16, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ XZ MOVEMENT <font color=\"#00E699\">| Ultra Engine v7.0</font>"
+titleLabel.RichText = true
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 26, 0, 26)
+btnCerrar.Position = UDim2.new(1, -34, 0.5, -13)
+btnCerrar.BackgroundColor3 = THEME.BgCard
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextSub
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 11
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 6)
+
+btnCerrar.MouseEnter:Connect(function()
+	tween(btnCerrar, 0.15, {BackgroundColor3 = THEME.Error, TextColor3 = Color3.new(1,1,1)})
+end)
+btnCerrar.MouseLeave:Connect(function()
+	tween(btnCerrar, 0.15, {BackgroundColor3 = THEME.BgCard, TextColor3 = THEME.TextSub})
+end)
+
+-- Línea Divisora
+local line = Instance.new("Frame", mainFrame)
+line.Size = UDim2.new(1, -24, 0, 1)
+line.Position = UDim2.new(0, 12, 0, 42)
+line.BackgroundColor3 = THEME.Border
+line.BorderSizePixel = 0
+
+-- Sidebar Lateral
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 135, 1, -56)
+sidebar.Position = UDim2.new(0, 12, 0, 48)
+sidebar.BackgroundColor3 = THEME.BgSidebar
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 8)
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local tabBtn = Instance.new("TextButton", sidebar)
+tabBtn.Size = UDim2.new(1, 0, 0, 34)
+tabBtn.BackgroundColor3 = THEME.BgCard
+tabBtn.Text = "   🏃  Movimiento"
+tabBtn.TextColor3 = THEME.Accent
+tabBtn.Font = Enum.Font.GothamBold
+tabBtn.TextSize = 11
+tabBtn.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
+
+local activeBar = Instance.new("Frame", tabBtn)
+activeBar.Size = UDim2.new(0, 3, 0, 18)
+activeBar.Position = UDim2.new(0, 0, 0.5, -9)
+activeBar.BackgroundColor3 = THEME.Accent
+Instance.new("UICorner", activeBar).CornerRadius = UDim.new(1, 0)
+
+-- WIDGET DE STATS (FPS / PING)
+local statsCard = Instance.new("Frame", sidebar)
+statsCard.Size = UDim2.new(1, -12, 0, 40)
+statsCard.Position = UDim2.new(0, 6, 1, -46)
+statsCard.BackgroundColor3 = THEME.BgCard
+Instance.new("UICorner", statsCard).CornerRadius = UDim.new(0, 6)
+
+local statsLabel = Instance.new("TextLabel", statsCard)
+statsLabel.Size = UDim2.new(1, 0, 1, 0)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "FPS: -- | Ping: --"
+statsLabel.TextColor3 = THEME.TextSub
+statsLabel.Font = Enum.Font.GothamMedium
+statsLabel.TextSize = 9
+
+RunService.RenderStepped:Connect(function(dt)
+	local fps = math.floor(1 / dt)
+	local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+	statsLabel.Text = string.format("FPS: %d | Ping: %dms", fps, ping)
+end)
+
+-- Contenedor de Opciones (ScrollingFrame)
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -170, 1, -56)
+contentContainer.Position = UDim2.new(0, 155, 0, 48)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 2
+contentContainer.ScrollBarImageColor3 = THEME.Accent
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 8)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- ======================================================
+--  COMPONENTES (TOGGLES Y SLIDERS)
+-- ======================================================
+
+local function crearToggle(titulo, sub, valorInicial, callback)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -8, 0, sub and 48 or 42)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke", card)
+	stroke.Color = THEME.Border
+	stroke.Thickness = 1
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(1, -65, 0, sub and 18 or 42)
+	tLabel.Position = UDim2.new(0, 12, 0, sub and 6 or 0)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.GothamBold
+	tLabel.TextSize = 11
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	if sub then
+		local sLabel = Instance.new("TextLabel", card)
+		sLabel.Size = UDim2.new(1, -65, 0, 14)
+		sLabel.Position = UDim2.new(0, 12, 0, 26)
+		sLabel.BackgroundTransparency = 1
+		sLabel.Text = sub
+		sLabel.TextColor3 = THEME.TextSub
+		sLabel.Font = Enum.Font.Gotham
+		sLabel.TextSize = 9
+		sLabel.TextXAlignment = Enum.TextXAlignment.Left
+	end
+
+	local switchBg = Instance.new("TextButton", card)
+	switchBg.Size = UDim2.new(0, 40, 0, 20)
+	switchBg.Position = UDim2.new(1, -50, 0.5, -10)
+	switchBg.BackgroundColor3 = valorInicial and THEME.Accent or Color3.fromRGB(45, 48, 58)
+	switchBg.Text = ""
+	switchBg.AutoButtonColor = false
+	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(1, 0)
+
+	local switchCircle = Instance.new("Frame", switchBg)
+	switchCircle.Size = UDim2.new(0, 14, 0, 14)
+	switchCircle.Position = valorInicial and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+	switchCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	switchCircle.BorderSizePixel = 0
+	Instance.new("UICorner", switchCircle).CornerRadius = UDim.new(1, 0)
+
+	local estado = valorInicial
+	switchBg.MouseButton1Click:Connect(function()
+		estado = not estado
+		if estado then
+			tween(switchBg, 0.2, {BackgroundColor3 = THEME.Accent})
+			tween(switchCircle, 0.2, {Position = UDim2.new(1, -17, 0.5, -7)})
+			tween(stroke, 0.2, {Color = THEME.Accent})
+		else
+			tween(switchBg, 0.2, {BackgroundColor3 = Color3.fromRGB(45, 48, 58)})
+			tween(switchCircle, 0.2, {Position = UDim2.new(0, 3, 0.5, -7)})
+			tween(stroke, 0.2, {Color = THEME.Border})
+		end
+		callback(estado)
+	end)
+end
+
+local function crearSlider(titulo, sub, minVal, maxVal, inicio, callback)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -8, 0, 52)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke", card)
+	stroke.Color = THEME.Border
+	stroke.Thickness = 1
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(0, 150, 0, 18)
+	tLabel.Position = UDim2.new(0, 12, 0, 6)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.GothamBold
+	tLabel.TextSize = 11
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local sLabel = Instance.new("TextLabel", card)
+	sLabel.Size = UDim2.new(0, 150, 0, 14)
+	sLabel.Position = UDim2.new(0, 12, 0, 26)
+	sLabel.BackgroundTransparency = 1
+	sLabel.Text = sub
+	sLabel.TextColor3 = THEME.TextSub
+	sLabel.Font = Enum.Font.Gotham
+	sLabel.TextSize = 9
+	sLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local valLabel = Instance.new("TextLabel", card)
+	valLabel.Size = UDim2.new(0, 40, 0, 18)
+	valLabel.Position = UDim2.new(1, -50, 0, 6)
+	valLabel.BackgroundTransparency = 1
+	valLabel.Text = tostring(inicio)
+	valLabel.TextColor3 = THEME.Accent
+	valLabel.Font = Enum.Font.GothamBold
+	valLabel.TextSize = 12
+	valLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+	local sliderTrack = Instance.new("TextButton", card)
+	sliderTrack.Size = UDim2.new(0, 120, 0, 4)
+	sliderTrack.Position = UDim2.new(1, -130, 0.7, -2)
+	sliderTrack.BackgroundColor3 = Color3.fromRGB(45, 48, 58)
+	sliderTrack.Text = ""
+	sliderTrack.AutoButtonColor = false
+	Instance.new("UICorner", sliderTrack).CornerRadius = UDim.new(1, 0)
+
+	local pctInicial = math.clamp((inicio - minVal) / (maxVal - minVal), 0, 1)
+
+	local sliderFill = Instance.new("Frame", sliderTrack)
+	sliderFill.Size = UDim2.new(pctInicial, 0, 1, 0)
+	sliderFill.BackgroundColor3 = THEME.Accent
+	sliderFill.BorderSizePixel = 0
+	Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(1, 0)
+
+	local sliderKnob = Instance.new("Frame", sliderTrack)
+	sliderKnob.Size = UDim2.new(0, 12, 0, 12)
+	sliderKnob.Position = UDim2.new(pctInicial, -6, 0.5, -6)
+	sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	sliderKnob.BorderSizePixel = 0
+	Instance.new("UICorner", sliderKnob).CornerRadius = UDim.new(1, 0)
+
+	local arrastrando = false
+
+	local function actualizar(input)
+		local posX = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+		sliderKnob.Position = UDim2.new(posX, -6, 0.5, -6)
+		sliderFill.Size = UDim2.new(posX, 0, 1, 0)
+
+		local valor = math.floor(minVal + (maxVal - minVal) * posX)
+		valLabel.Text = tostring(valor)
+		callback(valor)
+	end
+
+	sliderTrack.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			arrastrando = true
+			actualizar(input)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			arrastrando = false
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if arrastrando and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			actualizar(input)
+		end
+	end)
+end
+
+-- ======================================================
+--  MÓDULOS DE CONFIGURACIÓN
+-- ======================================================
+
+crearSlider("Velocidad", "WalkSpeed de movimiento", 16, 250, 16, function(val)
+	currentWalkSpeed = val
+end)
+
+crearSlider("Salto", "Altura de salto", 7, 200, 7, function(val)
+	currentJumpHeight = val
+	local hum = getHumanoid()
+	if hum then
+		hum.JumpHeight = val
+		hum.UseJumpPower = false
+	end
+end)
+
+crearToggle("Inf Jump", "Saltar en el aire infinitamente", false, function(val)
+	infJumpEnabled = val
+	if infJumpEnabled then
+		notify("Inf Jump", "Activado con éxito")
+		infJumpConnection = UserInputService.JumpRequest:Connect(function()
+			local hum = getHumanoid()
+			if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+		end)
+	else
+		notify("Inf Jump", "Desactivado")
+		if infJumpConnection then
+			infJumpConnection:Disconnect()
+			infJumpConnection = nil
+		end
+	end
+end)
+
+crearToggle("Noclip", "Atravesar paredes e infraestructuras", false, function(val)
+	noClipEnabled = val
+	if noClipEnabled then
+		notify("Noclip", "Activado con éxito")
+		noClipConnection = RunService.Stepped:Connect(function()
+			local char = LocalPlayer.Character
+			if char then
+				for _, part in ipairs(char:GetDescendants()) do
+					if part:IsA("BasePart") and part.CanCollide then
+						part.CanCollide = false
+					end
+				end
+			end
+		end)
+	else
+		notify("Noclip", "Desactivado")
+		if noClipConnection then
+			noClipConnection:Disconnect()
+			noClipConnection = nil
+		end
+	end
+end)
+
+-- BUCLE DE FISICA / VELOCIDAD RÁPIDA
+RunService.RenderStepped:Connect(function()
+	local hum = getHumanoid()
+	local char = getCharacter()
+	
+	if hum and char then
+		hum.WalkSpeed = currentWalkSpeed
+
+		if currentWalkSpeed > 16 and hum.MoveDirection.Magnitude > 0 then
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local moveDir = hum.MoveDirection
+				hrp.AssemblyLinearVelocity = Vector3.new(
+					moveDir.X * currentWalkSpeed,
+					hrp.AssemblyLinearVelocity.Y,
+					moveDir.Z * currentWalkSpeed
+				)
+			end
+		end
+	end
+end)
+
+contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	contentContainer.CanvasSize = UDim2.new(0, 0, 0, contentLayout.AbsoluteContentSize.Y + 12)
+end)
+
+-- ======================================================
+--  LÓGICA DE APERTURA / CIERRE
+-- ======================================================
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		tween(mainFrame, 0.35, {
+			Size = UDim2.new(0, 530, 0, 350),
+			Position = UDim2.new(0.5, -265, 0.5, -175)
+		}, Enum.EasingStyle.Back)
+	else
+		local a = tween(mainFrame, 0.25, {
+			Size = UDim2.new(0, 0, 0, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function()
+			if not panelAbierto then mainFrame.Visible = false end
+		end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+
+-- ======================================================
+--  INICIO INMEDIATO (SIN ESPERA DE 6 SEGUNDOS)
+-- ======================================================
+btnAbrir.Visible = true
+togglePanel()
+notify("XZ Sistema", "Script iniciado correctamente.")
+
