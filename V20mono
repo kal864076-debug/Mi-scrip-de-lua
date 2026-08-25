@@ -1,0 +1,1062 @@
+--[[
+    🤖 XZ SISTEMA TP - v17.2 (Auto-Detección de Etapa Actual)
+    Design: Dark Purple & Neon Red Cybernetic Theme
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Stats = game:GetService("Stats")
+local LocalPlayer = Players.LocalPlayer
+
+local THEME = {
+	BgPrimary   = Color3.fromRGB(18, 12, 24),
+	BgSidebar   = Color3.fromRGB(12, 8, 18),
+	BgCard      = Color3.fromRGB(30, 20, 42),
+	BgCardHover = Color3.fromRGB(48, 28, 64),
+	Accent      = Color3.fromRGB(175, 40, 255),
+	AccentGlow  = Color3.fromRGB(215, 100, 255),
+	Accent2     = Color3.fromRGB(255, 35, 75),
+	Success     = Color3.fromRGB(0, 255, 136),
+	Warning     = Color3.fromRGB(255, 170, 0),
+	Error       = Color3.fromRGB(255, 35, 75),
+	TextMain    = Color3.fromRGB(250, 235, 255),
+	TextSub     = Color3.fromRGB(175, 145, 195),
+	Border      = Color3.fromRGB(140, 30, 210)
+}
+
+local panelAbierto = false
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_SistemaTP_V17_TargetStage"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+local function notificar(titulo, msg, tipo, duracion)
+	duracion = duracion or 3
+	local color = THEME.Accent
+	local icon = "⚡"
+	if tipo == "success" then color = THEME.Success; icon = "✨"
+	elseif tipo == "error" then color = THEME.Error; icon = "🚨"
+	elseif tipo == "warning" then color = THEME.Accent2; icon = "⚠️"
+	elseif tipo == "tp" then color = THEME.Accent2; icon = "📍"
+	end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 240, 0, 52)
+	toast.Position = UDim2.new(1, 20, 0.78, 0)
+	toast.BackgroundColor3 = THEME.BgCard
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 6)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.4
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -10, 0, 16)
+	t1.Position = UDim2.new(0, 8, 0, 4)
+	t1.BackgroundTransparency = 1
+	t1.Text = icon .. "  " .. string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.RobotoMono
+	t1.TextSize = 10
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -12, 0, 28)
+	t2.Position = UDim2.new(0, 8, 0, 20)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 8
+	t2.TextWrapped = true
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.35, {Position = UDim2.new(1, -255, 0.78, 0)}, Enum.EasingStyle.Back)
+	task.delay(duracion, function()
+		local out = tween(toast, 0.3, {Position = UDim2.new(1, 20, 0.78, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+-- 🔘 BOTÓN ABRIR MODIFICADO A "tp-sk"
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 52, 0, 52)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Text = "tp-sk"
+btnAbrir.TextColor3 = THEME.Accent2
+btnAbrir.Font = Enum.Font.RobotoMono
+btnAbrir.TextSize = 12
+btnAbrir.Visible = true
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 10)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent2
+strokeBtn.Thickness = 1.8
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 380, 0, 260)
+mainFrame.Position = UDim2.new(0.5, -190, 0.5, -130)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = THEME.Border
+mainStroke.Thickness = 1.2
+
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 32)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ XZ HUB PREMIUM  |  v17.2 AUTO-STAGE"
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.RobotoMono
+titleLabel.TextSize = 11
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 22, 0, 22)
+btnCerrar.Position = UDim2.new(1, -27, 0.5, -11)
+btnCerrar.BackgroundColor3 = Color3.fromRGB(35, 18, 30)
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextSub
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 10
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 5)
+hover(btnCerrar, Color3.fromRGB(35, 18, 30), THEME.Error)
+
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 95, 1, -60)
+sidebar.Position = UDim2.new(0, 8, 0, 32)
+sidebar.BackgroundColor3 = THEME.BgSidebar
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 6)
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function crearTab(nombre, icono, activo)
+	local btn = Instance.new("TextButton", sidebar)
+	btn.Size = UDim2.new(1, 0, 0, 28)
+	btn.BackgroundTransparency = activo and 0 or 1
+	btn.BackgroundColor3 = THEME.BgCard
+	btn.Text = " " .. icono .. " " .. nombre
+	btn.TextColor3 = activo and THEME.Accent or THEME.TextSub
+	btn.Font = Enum.Font.RobotoMono
+	btn.TextSize = 10
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+	if activo then
+		local stroke = Instance.new("UIStroke", btn)
+		stroke.Color = THEME.Accent
+		stroke.Thickness = 1
+	end
+	return btn
+end
+
+crearTab("Teleport", "📍", true)
+
+local footer = Instance.new("Frame", mainFrame)
+footer.Size = UDim2.new(1, -16, 0, 20)
+footer.Position = UDim2.new(0, 8, 1, -24)
+footer.BackgroundColor3 = THEME.BgSidebar
+footer.BorderSizePixel = 0
+Instance.new("UICorner", footer).CornerRadius = UDim.new(0, 5)
+
+local statsLabel = Instance.new("TextLabel", footer)
+statsLabel.Size = UDim2.new(1, -12, 1, 0)
+statsLabel.Position = UDim2.new(0, 6, 0, 0)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "FPS: -- | Ping: -- ms | User: " .. LocalPlayer.Name
+statsLabel.TextColor3 = THEME.TextSub
+statsLabel.Font = Enum.Font.RobotoMono
+statsLabel.TextSize = 9
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+RunService.RenderStepped:Connect(function(dt)
+	local fps = math.floor(1 / dt)
+	local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+	statsLabel.Text = string.format("🟢 FPS: %d | ⚡ Ping: %d ms | 👤 %s", fps, ping, LocalPlayer.DisplayName)
+end)
+
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -115, 1, -60)
+contentContainer.Position = UDim2.new(0, 108, 0, 32)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 2
+contentContainer.ScrollBarImageColor3 = THEME.Accent
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 6)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local cardVelocidad = Instance.new("Frame", contentContainer)
+cardVelocidad.Size = UDim2.new(1, -4, 0, 32)
+cardVelocidad.BackgroundColor3 = THEME.BgSidebar
+cardVelocidad.BorderSizePixel = 0
+Instance.new("UICorner", cardVelocidad).CornerRadius = UDim.new(0, 5)
+
+local cardVelStroke = Instance.new("UIStroke", cardVelocidad)
+cardVelStroke.Color = THEME.Accent
+cardVelStroke.Thickness = 1
+
+local lblVel = Instance.new("TextLabel", cardVelocidad)
+lblVel.Size = UDim2.new(0, 180, 1, 0)
+lblVel.Position = UDim2.new(0, 8, 0, 0)
+lblVel.BackgroundTransparency = 1
+lblVel.Text = "⚡ Vel TP Global (0 = Instantáneo):"
+lblVel.TextColor3 = THEME.TextMain
+lblVel.Font = Enum.Font.RobotoMono
+lblVel.TextSize = 8
+lblVel.TextXAlignment = Enum.TextXAlignment.Left
+
+local inputVelocidadGlobal = Instance.new("TextBox", cardVelocidad)
+inputVelocidadGlobal.Size = UDim2.new(0, 45, 0, 20)
+inputVelocidadGlobal.Position = UDim2.new(1, -50, 0.5, -10)
+inputVelocidadGlobal.BackgroundColor3 = THEME.BgCard
+inputVelocidadGlobal.Text = "0"
+inputVelocidadGlobal.TextColor3 = THEME.AccentGlow
+inputVelocidadGlobal.Font = Enum.Font.RobotoMono
+inputVelocidadGlobal.TextSize = 9
+inputVelocidadGlobal.ClearTextOnFocus = false
+Instance.new("UICorner", inputVelocidadGlobal).CornerRadius = UDim.new(0, 4)
+Instance.new("UIStroke", inputVelocidadGlobal).Color = THEME.Border
+
+-- === FUNCIÓN PARA OBTENER LA ETAPA ACTUAL DEL JUGADOR ===
+local function obtenerEtapaActualJugador()
+	local stats = LocalPlayer:FindFirstChild("leaderstats") or LocalPlayer:FindFirstChild("stats")
+	if stats then
+		local stageVal = stats:FindFirstChild("Stage") 
+			or stats:FindFirstChild("StageValue") 
+			or stats:FindFirstChild("Level") 
+			or stats:FindFirstChild("Etapa")
+		if stageVal then
+			return tonumber(stageVal.Value)
+		end
+	end
+	return nil
+end
+
+local function crearTarjetaBase(titulo, sub)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -4, 0, 38)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+	local cardStroke = Instance.new("UIStroke", card)
+	cardStroke.Color = THEME.Border
+	cardStroke.Thickness = 1
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(1, -55, 0, 14)
+	tLabel.Position = UDim2.new(0, 8, 0, 4)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.RobotoMono
+	tLabel.TextSize = 10
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local sLabel = Instance.new("TextLabel", card)
+	sLabel.Size = UDim2.new(1, -55, 0, 12)
+	sLabel.Position = UDim2.new(0, 8, 0, 18)
+	sLabel.BackgroundTransparency = 1
+	sLabel.Text = sub
+	sLabel.TextColor3 = THEME.TextSub
+	sLabel.Font = Enum.Font.Gotham
+	sLabel.TextSize = 8
+	sLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	return card
+end
+
+local function crearTarjetaToggle(titulo, sub, colorActivo)
+	colorActivo = colorActivo or THEME.Accent
+	local card = crearTarjetaBase(titulo, sub)
+
+	local switchBg = Instance.new("TextButton", card)
+	switchBg.Size = UDim2.new(0, 38, 0, 20)
+	switchBg.Position = UDim2.new(1, -44, 0.5, -10)
+	switchBg.BackgroundColor3 = Color3.fromRGB(24, 15, 32)
+	switchBg.Text = ""
+	switchBg.AutoButtonColor = false
+	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(0, 5)
+
+	local switchStroke = Instance.new("UIStroke", switchBg)
+	switchStroke.Color = Color3.fromRGB(70, 30, 90)
+	switchStroke.Thickness = 1
+
+	local knob = Instance.new("Frame", switchBg)
+	knob.Size = UDim2.new(0, 14, 0, 14)
+	knob.Position = UDim2.new(0, 3, 0.5, -7)
+	knob.BackgroundColor3 = THEME.Accent
+	knob.BorderSizePixel = 0
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 3)
+
+	local estado = false
+
+	local function setEstado(nuevoEstado)
+		estado = nuevoEstado
+		if estado then
+			tween(switchBg, 0.22, {BackgroundColor3 = colorActivo})
+			switchStroke.Color = colorActivo
+			knob.BackgroundColor3 = Color3.fromRGB(18, 12, 24)
+			tween(knob, 0.22, {Position = UDim2.new(1, -17, 0.5, -7)})
+		else
+			tween(switchBg, 0.22, {BackgroundColor3 = Color3.fromRGB(24, 15, 32)})
+			switchStroke.Color = Color3.fromRGB(70, 30, 90)
+			knob.BackgroundColor3 = THEME.Accent
+			tween(knob, 0.22, {Position = UDim2.new(0, 3, 0.5, -7)})
+		end
+	end
+
+	return card, switchBg, setEstado
+end
+
+local mundosData = {}
+
+local function getRoot()
+	local c = LocalPlayer.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function obtenerPosicionEtapa(numMundo, numEtapa)
+	local ok, res = pcall(function()
+		local map = Workspace:FindFirstChild("Map") or Workspace
+		local world = map:FindFirstChild("World" .. numMundo) 
+			or map:FindFirstChild("World " .. numMundo) 
+			or map
+
+		local nombresPosibles = {
+			"Stage" .. numEtapa, "Stage " .. numEtapa, "Stage_" .. numEtapa,
+			"Etapa" .. numEtapa, "Etapa " .. numEtapa, "Checkpoint" .. numEtapa,
+			"Checkpoint " .. numEtapa, tostring(numEtapa)
+		}
+
+		local stageObj = nil
+		local stagesFolder = world:FindFirstChild("Stages") or world:FindFirstChild("Checkpoints") or world
+
+		for _, nombre in ipairs(nombresPosibles) do
+			stageObj = stagesFolder:FindFirstChild(nombre, true)
+			if stageObj then break end
+		end
+
+		if not stageObj then return nil end
+
+		local winObj = stageObj:FindFirstChild("NormalWin", true) 
+			or stageObj:FindFirstChild("UI", true) 
+			or stageObj:FindFirstChild("Win", true) 
+			or stageObj
+
+		if winObj:IsA("Model") then
+			local p = winObj:FindFirstChildWhichIsA("BasePart", true)
+			return p and p.CFrame or winObj:GetPivot()
+		elseif winObj:IsA("BasePart") then
+			return winObj.CFrame
+		end
+
+		return nil
+	end)
+
+	if ok and res then
+		return res + Vector3.new(0, 3.5, 0)
+	end
+	return nil
+end
+
+local function MoverAEtapa(numMundo, numEtapa)
+	local root = getRoot()
+	if not root then return end
+	
+	local pos = obtenerPosicionEtapa(numMundo, numEtapa)
+	if pos then
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.CFrame = pos
+	end
+end
+
+local function crearTarjetaOpciones(numMundo)
+	local maxEtapas = (numMundo == 5) and 6 or 10
+
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -4, 0, 32)
+	card.BackgroundColor3 = THEME.BgSidebar
+	card.BorderSizePixel = 0
+	card.Visible = false
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 5)
+
+	local lblVel = Instance.new("TextLabel", card)
+	lblVel.Size = UDim2.new(0, 50, 1, 0)
+	lblVel.Position = UDim2.new(0, 6, 0, 0)
+	lblVel.BackgroundTransparency = 1
+	lblVel.Text = "⏱️ Seg:"
+	lblVel.TextColor3 = THEME.TextSub
+	lblVel.Font = Enum.Font.RobotoMono
+	lblVel.TextSize = 9
+	lblVel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local boxVel = Instance.new("TextBox", card)
+	boxVel.Size = UDim2.new(0, 30, 0, 18)
+	boxVel.Position = UDim2.new(0, 48, 0.5, -9)
+	boxVel.BackgroundColor3 = THEME.BgCard
+	boxVel.Text = inputVelocidadGlobal.Text
+	boxVel.TextColor3 = THEME.Accent
+	boxVel.Font = Enum.Font.RobotoMono
+	boxVel.TextSize = 9
+	boxVel.ClearTextOnFocus = false
+	Instance.new("UICorner", boxVel).CornerRadius = UDim.new(0, 3)
+	Instance.new("UIStroke", boxVel).Color = THEME.Border
+
+	local lblEtapa = Instance.new("TextLabel", card)
+	lblEtapa.Size = UDim2.new(0, 100, 1, 0)
+	lblEtapa.Position = UDim2.new(0, 88, 0, 0)
+	lblEtapa.BackgroundTransparency = 1
+	lblEtapa.Text = string.format("🚩 Etapa (1-%d):", maxEtapas)
+	lblEtapa.TextColor3 = THEME.TextSub
+	lblEtapa.Font = Enum.Font.RobotoMono
+	lblEtapa.TextSize = 8
+	lblEtapa.TextXAlignment = Enum.TextXAlignment.Left
+
+	local boxEtapa = Instance.new("TextBox", card)
+	boxEtapa.Size = UDim2.new(0, 32, 0, 18)
+	boxEtapa.Position = UDim2.new(1, -38, 0.5, -9)
+	boxEtapa.BackgroundColor3 = THEME.BgCard
+	boxEtapa.Text = tostring(obtenerEtapaActualJugador() or maxEtapas)
+	boxEtapa.TextColor3 = THEME.Accent2
+	boxEtapa.Font = Enum.Font.RobotoMono
+	boxEtapa.TextSize = 9
+	boxEtapa.ClearTextOnFocus = false
+	Instance.new("UICorner", boxEtapa).CornerRadius = UDim.new(0, 3)
+	Instance.new("UIStroke", boxEtapa).Color = THEME.Border
+
+	boxVel:GetPropertyChangedSignal("Text"):Connect(function()
+		boxVel.Text = boxVel.Text:gsub("[^%d%.]", "")
+	end)
+
+	boxEtapa:GetPropertyChangedSignal("Text"):Connect(function()
+		boxEtapa.Text = boxEtapa.Text:gsub("[^%d]", "")
+		local val = tonumber(boxEtapa.Text)
+		if val then
+			if val > maxEtapas then boxEtapa.Text = tostring(maxEtapas) end
+			if val < 1 then boxEtapa.Text = "1" end
+
+			local etapaActual = tonumber(boxEtapa.Text) or 1
+			if mundosData[numMundo] and mundosData[numMundo].bucle then
+				MoverAEtapa(numMundo, etapaActual)
+			end
+		end
+	end)
+
+	return card, boxVel, boxEtapa
+end
+
+local function desactivarOtrosMundos(idxExcluido)
+	for i = 1, 5 do
+		if i ~= idxExcluido and mundosData[i] then
+			if mundosData[i].bucle then
+				mundosData[i].bucle = false
+				mundosData[i].setSwitch(false)
+				mundosData[i].fI.Visible = false
+				if mundosData[i].hilo then
+					task.cancel(mundosData[i].hilo)
+					mundosData[i].hilo = nil
+				end
+			end
+		end
+	end
+end
+
+for i = 1, 5 do
+	local colorTema = (i % 2 == 0) and THEME.Accent2 or THEME.Accent
+	local subTexto = (i == 5) and "TP a Etapa (1-6)" or "TP a Etapa (1-10)"
+	local card, switchBtn, setSwitch = crearTarjetaToggle("Mundo " .. i, subTexto, colorTema)
+	local fI, boxVel, boxEtapa = crearTarjetaOpciones(i)
+
+	mundosData[i] = {
+		bucle = false,
+		hilo = nil,
+		setSwitch = setSwitch,
+		fI = fI,
+		boxVel = boxVel,
+		boxEtapa = boxEtapa
+	}
+
+	switchBtn.MouseButton1Click:Connect(function()
+		local data = mundosData[i]
+		data.bucle = not data.bucle
+		setSwitch(data.bucle)
+
+		if data.bucle then
+			desactivarOtrosMundos(i)
+			data.fI.Visible = true
+
+			local etapaDetectada = obtenerEtapaActualJugador()
+			if etapaDetectada then
+				data.boxEtapa.Text = tostring(etapaDetectada)
+			end
+
+			local etapaSel = tonumber(data.boxEtapa.Text) or 1
+			MoverAEtapa(i, etapaSel)
+
+			data.hilo = task.spawn(function()
+				while data.bucle do
+					local e = tonumber(data.boxEtapa.Text) or 1
+					MoverAEtapa(i, e)
+
+					local t = tonumber(data.boxVel.Text) or tonumber(inputVelocidadGlobal.Text) or 0
+					if t <= 0 then
+						task.wait()
+					else
+						task.wait(t)
+					end
+				end
+			end)
+
+			notificar("TP M" .. i, "Teletransportando a Etapa " .. data.boxEtapa.Text, "success", 3)
+		else
+			data.fI.Visible = false
+			if data.hilo then
+				task.cancel(data.hilo)
+				data.hilo = nil
+			end
+			notificar("Auto TP M" .. i, "Desactivado", "warning", 3)
+		end
+	end)
+end
+
+inputVelocidadGlobal:GetPropertyChangedSignal("Text"):Connect(function()
+	inputVelocidadGlobal.Text = inputVelocidadGlobal.Text:gsub("[^%d%.]", "")
+	local val = inputVelocidadGlobal.Text
+	for i = 1, 5 do
+		if mundosData[i] and mundosData[i].boxVel then
+			mundosData[i].boxVel.Text = val
+		end
+	end
+end)
+
+contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	contentContainer.CanvasSize = UDim2.new(0, 0, 0, contentLayout.AbsoluteContentSize.Y + 6)
+end)
+
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		tween(mainFrame, 0.35, {
+			Size = UDim2.new(0, 380, 0, 260),
+			Position = UDim2.new(0.5, -190, 0.5, -130)
+		}, Enum.EasingStyle.Back)
+	else
+		local a = tween(mainFrame, 0.25, {
+			Size = UDim2.new(0, 0, 0, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function()
+			if not panelAbierto then mainFrame.Visible = false end
+		end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+
+togglePanel()
+
+-- ⏱️ AVISO DURANDO 10 SEGUNDOS
+notificar(
+	"AVISO", 
+	"Estar cerca de las etapas donde quieras hacer TP", 
+	"warning", 
+	10
+)
+
+Local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local flying = false
+local autoBajar = false
+local antiAfkActive = false
+local antiAfkConn = nil
+local flySpeed = 200
+local bodyVelocity = nil
+local bodyGyro = nil
+local upPressed, downPressed = false, false
+
+-- Color fijo del tema (Púrpura / Morado)
+local currentThemeColor = Color3.fromRGB(90, 30, 140)
+
+-- 1. NOMBRE SOBRE LA CABEZA (TRANSPARENTE + ARCOÍRIS ANIMADO)
+local function setupOverheadTag(character)
+	local head = character:WaitForChild("Head", 5)
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	if not head then return end
+	
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	end
+	
+	if head:FindFirstChild("XZOmegaOverhead") then
+		head.XZOmegaOverhead:Destroy()
+	end
+	
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "XZOmegaOverhead"
+	billboard.Size = UDim2.new(0, 200, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = head
+	
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "RainbowLabel"
+	nameLabel.Size = UDim2.new(1, 0, 1, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = "XZ OMEGA"
+	nameLabel.TextSize = 22
+	nameLabel.Font = Enum.Font.SourceSansBold
+	nameLabel.TextStrokeTransparency = 0
+	nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	nameLabel.Parent = billboard
+end
+
+if player.Character then setupOverheadTag(player.Character) end
+player.CharacterAdded:Connect(function(char)
+	task.wait(0.5)
+	setupOverheadTag(char)
+end)
+
+-- GUI PRINCIPAL
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZHubModernGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- 2. BOTÓN FLOTANTE CON PERFIL Y DATOS EN VIVO
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 210, 0, 50)
+toggleBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
+toggleBtn.BackgroundColor3 = currentThemeColor
+toggleBtn.Text = ""
+toggleBtn.Active = true
+toggleBtn.Draggable = true
+toggleBtn.Parent = screenGui
+
+local cornerToggle = Instance.new("UICorner")
+cornerToggle.CornerRadius = UDim.new(0, 8)
+cornerToggle.Parent = toggleBtn
+
+local avatarImg = Instance.new("ImageLabel")
+avatarImg.Size = UDim2.new(0, 40, 0, 40)
+avatarImg.Position = UDim2.new(0, 5, 0, 5)
+avatarImg.BackgroundTransparency = 1
+avatarImg.Parent = toggleBtn
+
+-- Carga foto de perfil de Roblox
+task.spawn(function()
+	pcall(function()
+		avatarImg.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+	end)
+end)
+
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, -50, 1, 0)
+infoLabel.Position = UDim2.new(0, 50, 0, 0)
+infoLabel.BackgroundTransparency = 1
+infoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+infoLabel.TextSize = 10
+infoLabel.Font = Enum.Font.SourceSansBold
+infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+infoLabel.Text = player.Name .. "\nFly: [APAGADO] | Ping: -- ms | FPS: --"
+infoLabel.Parent = toggleBtn
+
+-- VENTANA PRINCIPAL (Estilo XZ HUB)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 460, 0, 350)
+mainFrame.Position = UDim2.new(0.5, -230, 0.5, -175)
+mainFrame.BackgroundColor3 = Color3.fromRGB(16, 17, 24)
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+-- BARRA SUPERIOR
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 38)
+topBar.BackgroundColor3 = Color3.fromRGB(10, 11, 16)
+topBar.Parent = mainFrame
+
+local topCorner = Instance.new("UICorner")
+topCorner.CornerRadius = UDim.new(0, 12)
+topCorner.Parent = topBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -50, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ XZ HUB PREMIUM v20.2 | Panel Vuelo"
+titleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+titleLabel.TextSize = 13
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = topBar
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -34, 0, 4)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+closeBtn.TextSize = 15
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.Parent = topBar
+
+closeBtn.MouseButton1Click:Connect(function() mainFrame.Visible = false end)
+toggleBtn.MouseButton1Click:Connect(function() mainFrame.Visible = not mainFrame.Visible end)
+
+-- SCROLL DE OPCIONES
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, -16, 1, -72)
+scrollFrame.Position = UDim2.new(0, 8, 0, 42)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 3
+scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 100)
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 340)
+scrollFrame.Parent = mainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = scrollFrame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
+
+local function createCard(titleText, descText, layoutOrder)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1, -6, 0, 58)
+	card.BackgroundColor3 = Color3.fromRGB(25, 27, 38)
+	card.LayoutOrder = layoutOrder
+	card.Parent = scrollFrame
+	
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0, 8)
+	cardCorner.Parent = card
+	
+	local tLabel = Instance.new("TextLabel")
+	tLabel.Size = UDim2.new(0.6, 0, 0, 20)
+	tLabel.Position = UDim2.new(0, 12, 0, 8)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titleText
+	tLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+	tLabel.TextSize = 13
+	tLabel.Font = Enum.Font.SourceSansBold
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+	tLabel.Parent = card
+	
+	local dLabel = Instance.new("TextLabel")
+	dLabel.Size = UDim2.new(0.6, 0, 0, 18)
+	dLabel.Position = UDim2.new(0, 12, 0, 28)
+	dLabel.BackgroundTransparency = 1
+	dLabel.Text = descText
+	dLabel.TextColor3 = Color3.fromRGB(120, 125, 140)
+	dLabel.TextSize = 11
+	dLabel.Font = Enum.Font.SourceSans
+	dLabel.TextXAlignment = Enum.TextXAlignment.Left
+	dLabel.Parent = card
+	
+	return card
+end
+
+local function createToggle(card, defaultState, callback)
+	local switchBg = Instance.new("Frame")
+	switchBg.Size = UDim2.new(0, 58, 0, 26)
+	switchBg.Position = UDim2.new(1, -68, 0.5, -13)
+	switchBg.BackgroundColor3 = defaultState and currentThemeColor or Color3.fromRGB(48, 52, 65)
+	switchBg.Parent = card
+	
+	local switchCorner = Instance.new("UICorner")
+	switchCorner.CornerRadius = UDim.new(1, 0)
+	switchCorner.Parent = switchBg
+	
+	local circle = Instance.new("Frame")
+	circle.Size = UDim2.new(0, 20, 0, 20)
+	circle.Position = defaultState and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)
+	circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	circle.Parent = switchBg
+	
+	local circleCorner = Instance.new("UICorner")
+	circleCorner.CornerRadius = UDim.new(1, 0)
+	circleCorner.Parent = circle
+	
+	local stateLabel = Instance.new("TextLabel")
+	stateLabel.Size = UDim2.new(1, 0, 1, 0)
+	stateLabel.BackgroundTransparency = 1
+	stateLabel.Text = defaultState and "ON" or "OFF"
+	stateLabel.TextColor3 = defaultState and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 150)
+	stateLabel.TextSize = 10
+	stateLabel.Font = Enum.Font.SourceSansBold
+	stateLabel.Parent = switchBg
+	
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, 0, 1, 0)
+	button.BackgroundTransparency = 1
+	button.Text = ""
+	button.Parent = switchBg
+	
+	local state = defaultState
+	button.MouseButton1Click:Connect(function()
+		state = not state
+		stateLabel.Text = state and "ON" or "OFF"
+		switchBg.BackgroundColor3 = state and currentThemeColor or Color3.fromRGB(48, 52, 65)
+		circle.Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)
+		callback(state)
+	end)
+	
+	return switchBg
+end
+
+-- TARJETA 1: VUELO
+local flyCard = createCard("Vuelo Principal", "Activa el vuelo de tu personaje", 1)
+createToggle(flyCard, false, function(state)
+	if state then
+		local character = player.Character
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			local hrp = character.HumanoidRootPart
+			bodyVelocity = Instance.new("BodyVelocity")
+			bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+			bodyVelocity.Velocity = Vector3.zero
+			bodyVelocity.Parent = hrp
+
+			bodyGyro = Instance.new("BodyGyro")
+			bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+			bodyGyro.CFrame = hrp.CFrame
+			bodyGyro.Parent = hrp
+
+			flying = true
+		end
+	else
+		flying = false
+		if bodyVelocity then bodyVelocity:Destroy() end
+		if bodyGyro then bodyGyro:Destroy() end
+	end
+end)
+
+-- TARJETA 2: VELOCIDAD CON TEXTBOX
+local speedCard = createCard("Velocidad de Vuelo", "Escribe el número o usa los botones", 2)
+
+local minusBtn = Instance.new("TextButton")
+minusBtn.Size = UDim2.new(0, 28, 0, 28)
+minusBtn.Position = UDim2.new(1, -122, 0.5, -14)
+minusBtn.BackgroundColor3 = Color3.fromRGB(45, 48, 62)
+minusBtn.Text = "-"
+minusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minusBtn.TextSize = 16
+minusBtn.Font = Enum.Font.SourceSansBold
+minusBtn.Parent = speedCard
+local cM = Instance.new("UICorner") cM.CornerRadius = UDim.new(0, 6) cM.Parent = minusBtn
+
+local speedInput = Instance.new("TextBox")
+speedInput.Size = UDim2.new(0, 52, 0, 28)
+speedInput.Position = UDim2.new(1, -88, 0.5, -14)
+speedInput.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+speedInput.Text = tostring(flySpeed)
+speedInput.TextColor3 = currentThemeColor
+speedInput.TextSize = 12
+speedInput.Font = Enum.Font.SourceSansBold
+speedInput.ClearTextOnFocus = false
+speedInput.Parent = speedCard
+local cV = Instance.new("UICorner") cV.CornerRadius = UDim.new(0, 6) cV.Parent = speedInput
+
+local plusBtn = Instance.new("TextButton")
+plusBtn.Size = UDim2.new(0, 28, 0, 28)
+plusBtn.Position = UDim2.new(1, -30, 0.5, -14)
+plusBtn.BackgroundColor3 = Color3.fromRGB(45, 48, 62)
+plusBtn.Text = "+"
+plusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+plusBtn.TextSize = 16
+plusBtn.Font = Enum.Font.SourceSansBold
+plusBtn.Parent = speedCard
+local cP = Instance.new("UICorner") cP.CornerRadius = UDim.new(0, 6) cP.Parent = plusBtn
+
+speedInput.FocusLost:Connect(function()
+	local num = tonumber(speedInput.Text)
+	if num then
+		flySpeed = math.clamp(math.floor(num), 1, 5000)
+		speedInput.Text = tostring(flySpeed)
+	else
+		speedInput.Text = tostring(flySpeed)
+	end
+end)
+
+plusBtn.MouseButton1Click:Connect(function()
+	flySpeed = math.min(5000, flySpeed + 50)
+	speedInput.Text = tostring(flySpeed)
+end)
+
+minusBtn.MouseButton1Click:Connect(function()
+	flySpeed = math.max(10, flySpeed - 50)
+	speedInput.Text = tostring(flySpeed)
+end)
+
+-- TARJETA 3: CONTROLES SUBIR / BAJAR
+local moveCard = createCard("Control Vertical", "Mantén para elevarte o descender", 3)
+
+local upBtn = Instance.new("TextButton")
+upBtn.Size = UDim2.new(0, 52, 0, 26)
+upBtn.Position = UDim2.new(1, -118, 0.5, -13)
+upBtn.BackgroundColor3 = currentThemeColor
+upBtn.Text = "SUBIR"
+upBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+upBtn.TextSize = 10
+upBtn.Font = Enum.Font.SourceSansBold
+upBtn.Parent = moveCard
+local cUp = Instance.new("UICorner") cUp.CornerRadius = UDim.new(0, 6) cUp.Parent = upBtn
+
+local downBtn = Instance.new("TextButton")
+downBtn.Size = UDim2.new(0, 52, 0, 26)
+downBtn.Position = UDim2.new(1, -60, 0.5, -13)
+downBtn.BackgroundColor3 = Color3.fromRGB(45, 48, 62)
+downBtn.Text = "BAJAR"
+downBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+downBtn.TextSize = 10
+downBtn.Font = Enum.Font.SourceSansBold
+downBtn.Parent = moveCard
+local cDown = Instance.new("UICorner") cDown.CornerRadius = UDim.new(0, 6) cDown.Parent = downBtn
+
+upBtn.MouseButton1Down:Connect(function() upPressed = true end)
+upBtn.MouseButton1Up:Connect(function() upPressed = false end)
+downBtn.MouseButton1Down:Connect(function() downPressed = true end)
+downBtn.MouseButton1Up:Connect(function() downPressed = false end)
+
+-- TARJETA 4: AUTO BAJAR
+local autoCard = createCard("Auto Bajar", "Baja automáticamente sin presionar nada", 4)
+createToggle(autoCard, false, function(state) autoBajar = state end)
+
+-- TARJETA 5: ANTI AFK
+local afkCard = createCard("Anti AFK", "Evita la desconexión automática por inactividad", 5)
+createToggle(afkCard, false, function(state)
+	antiAfkActive = state
+	if antiAfkActive then
+		antiAfkConn = player.Idled:Connect(function()
+			VirtualUser:Button2Down(Vector2.new(0,0), camera.CFrame)
+			task.wait(1)
+			VirtualUser:Button2Up(Vector2.new(0,0), camera.CFrame)
+		end)
+	else
+		if antiAfkConn then
+			antiAfkConn:Disconnect()
+			antiAfkConn = nil
+		end
+	end
+end)
+
+-- BARRA INFERIOR DE ESTADO
+local footerBar = Instance.new("Frame")
+footerBar.Size = UDim2.new(1, 0, 0, 28)
+footerBar.Position = UDim2.new(0, 0, 1, -28)
+footerBar.BackgroundColor3 = Color3.fromRGB(10, 11, 16)
+footerBar.Parent = mainFrame
+
+local footerCorner = Instance.new("UICorner")
+footerCorner.CornerRadius = UDim.new(0, 12)
+footerCorner.Parent = footerBar
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 1, 0)
+statusLabel.Position = UDim2.new(0, 15, 0, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(150, 155, 170)
+statusLabel.TextSize = 11
+statusLabel.Font = Enum.Font.SourceSansBold
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Text = "🟢 FPS: 60 | ⚡ Ping: -- ms | 👤 " .. player.Name
+statusLabel.Parent = footerBar
+
+-- BUCLE DE RENDIMIENTO Y VUELO
+local lastTime = tick()
+local frameCount = 0
+
+RunService.RenderStepped:Connect(function()
+	local hue = (tick() * 0.5) % 1
+	local rainbowColor = Color3.fromHSV(hue, 1, 1)
+	
+	if player.Character and player.Character:FindFirstChild("Head") then
+		local tag = player.Character.Head:FindFirstChild("XZOmegaOverhead")
+		if tag and tag:FindFirstChild("RainbowLabel") then
+			tag.RainbowLabel.TextColor3 = rainbowColor
+		end
+	end
+	
+	frameCount = frameCount + 1
+	if tick() - lastTime >= 1 then
+		local fps = frameCount
+		frameCount = 0
+		lastTime = tick()
+		
+		local pingMs = 0
+		pcall(function()
+			pingMs = math.floor(player:GetNetworkPing() * 1000)
+		end)
+		
+		statusLabel.Text = "🟢 FPS: " .. fps .. " | ⚡ Ping: " .. pingMs .. " ms | 👤 " .. player.Name
+		
+		local flyStatus = flying and "[ENCENDIDO]" or "[APAGADO]"
+		infoLabel.Text = player.Name .. "\nFly: " .. flyStatus .. " | Ping: " .. pingMs .. " ms | FPS: " .. fps
+	end
+	
+	if flying and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+		bodyGyro.CFrame = camera.CFrame
+		
+		local moveDir = humanoid and humanoid.MoveDirection or Vector3.zero
+		local vMove = 0
+		if upPressed then vMove = 1 end
+		if downPressed or autoBajar then vMove = -1 end
+		
+		bodyVelocity.Velocity = (moveDir * flySpeed) + Vector3.new(0, vMove * flySpeed, 0)
+	end
+end)
+
