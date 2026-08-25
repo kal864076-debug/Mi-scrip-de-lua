@@ -1,0 +1,609 @@
+--[[
+    🤖 XZ SISTEMA TP - v17.2 (Auto-Detección de Etapa Actual)
+    Design: Dark Purple & Neon Red Cybernetic Theme
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Stats = game:GetService("Stats")
+local LocalPlayer = Players.LocalPlayer
+
+local THEME = {
+	BgPrimary   = Color3.fromRGB(18, 12, 24),
+	BgSidebar   = Color3.fromRGB(12, 8, 18),
+	BgCard      = Color3.fromRGB(30, 20, 42),
+	BgCardHover = Color3.fromRGB(48, 28, 64),
+	Accent      = Color3.fromRGB(175, 40, 255),
+	AccentGlow  = Color3.fromRGB(215, 100, 255),
+	Accent2     = Color3.fromRGB(255, 35, 75),
+	Success     = Color3.fromRGB(0, 255, 136),
+	Warning     = Color3.fromRGB(255, 170, 0),
+	Error       = Color3.fromRGB(255, 35, 75),
+	TextMain    = Color3.fromRGB(250, 235, 255),
+	TextSub     = Color3.fromRGB(175, 145, 195),
+	Border      = Color3.fromRGB(140, 30, 210)
+}
+
+local panelAbierto = false
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_SistemaTP_V17_TargetStage"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+local function notificar(titulo, msg, tipo, duracion)
+	duracion = duracion or 3
+	local color = THEME.Accent
+	local icon = "⚡"
+	if tipo == "success" then color = THEME.Success; icon = "✨"
+	elseif tipo == "error" then color = THEME.Error; icon = "🚨"
+	elseif tipo == "warning" then color = THEME.Accent2; icon = "⚠️"
+	elseif tipo == "tp" then color = THEME.Accent2; icon = "📍"
+	end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 240, 0, 52)
+	toast.Position = UDim2.new(1, 20, 0.78, 0)
+	toast.BackgroundColor3 = THEME.BgCard
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 6)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.4
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -10, 0, 16)
+	t1.Position = UDim2.new(0, 8, 0, 4)
+	t1.BackgroundTransparency = 1
+	t1.Text = icon .. "  " .. string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.RobotoMono
+	t1.TextSize = 10
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -12, 0, 28)
+	t2.Position = UDim2.new(0, 8, 0, 20)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 8
+	t2.TextWrapped = true
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.35, {Position = UDim2.new(1, -255, 0.78, 0)}, Enum.EasingStyle.Back)
+	task.delay(duracion, function()
+		local out = tween(toast, 0.3, {Position = UDim2.new(1, 20, 0.78, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+-- 🔘 BOTÓN ABRIR MODIFICADO A "tp-sk"
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 52, 0, 52)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Text = "tp-sk"
+btnAbrir.TextColor3 = THEME.Accent2
+btnAbrir.Font = Enum.Font.RobotoMono
+btnAbrir.TextSize = 12
+btnAbrir.Visible = true
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 10)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Accent2
+strokeBtn.Thickness = 1.8
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 380, 0, 260)
+mainFrame.Position = UDim2.new(0.5, -190, 0.5, -130)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = THEME.Border
+mainStroke.Thickness = 1.2
+
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 32)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ XZ HUB PREMIUM  |  v17.2 AUTO-STAGE"
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.RobotoMono
+titleLabel.TextSize = 11
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 22, 0, 22)
+btnCerrar.Position = UDim2.new(1, -27, 0.5, -11)
+btnCerrar.BackgroundColor3 = Color3.fromRGB(35, 18, 30)
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextSub
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 10
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 5)
+hover(btnCerrar, Color3.fromRGB(35, 18, 30), THEME.Error)
+
+local sidebar = Instance.new("Frame", mainFrame)
+sidebar.Size = UDim2.new(0, 95, 1, -60)
+sidebar.Position = UDim2.new(0, 8, 0, 32)
+sidebar.BackgroundColor3 = THEME.BgSidebar
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 6)
+
+local sidebarLayout = Instance.new("UIListLayout", sidebar)
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function crearTab(nombre, icono, activo)
+	local btn = Instance.new("TextButton", sidebar)
+	btn.Size = UDim2.new(1, 0, 0, 28)
+	btn.BackgroundTransparency = activo and 0 or 1
+	btn.BackgroundColor3 = THEME.BgCard
+	btn.Text = " " .. icono .. " " .. nombre
+	btn.TextColor3 = activo and THEME.Accent or THEME.TextSub
+	btn.Font = Enum.Font.RobotoMono
+	btn.TextSize = 10
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+	if activo then
+		local stroke = Instance.new("UIStroke", btn)
+		stroke.Color = THEME.Accent
+		stroke.Thickness = 1
+	end
+	return btn
+end
+
+crearTab("Teleport", "📍", true)
+
+local footer = Instance.new("Frame", mainFrame)
+footer.Size = UDim2.new(1, -16, 0, 20)
+footer.Position = UDim2.new(0, 8, 1, -24)
+footer.BackgroundColor3 = THEME.BgSidebar
+footer.BorderSizePixel = 0
+Instance.new("UICorner", footer).CornerRadius = UDim.new(0, 5)
+
+local statsLabel = Instance.new("TextLabel", footer)
+statsLabel.Size = UDim2.new(1, -12, 1, 0)
+statsLabel.Position = UDim2.new(0, 6, 0, 0)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "FPS: -- | Ping: -- ms | User: " .. LocalPlayer.Name
+statsLabel.TextColor3 = THEME.TextSub
+statsLabel.Font = Enum.Font.RobotoMono
+statsLabel.TextSize = 9
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+RunService.RenderStepped:Connect(function(dt)
+	local fps = math.floor(1 / dt)
+	local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+	statsLabel.Text = string.format("🟢 FPS: %d | ⚡ Ping: %d ms | 👤 %s", fps, ping, LocalPlayer.DisplayName)
+end)
+
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -115, 1, -60)
+contentContainer.Position = UDim2.new(0, 108, 0, 32)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 2
+contentContainer.ScrollBarImageColor3 = THEME.Accent
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 6)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local cardVelocidad = Instance.new("Frame", contentContainer)
+cardVelocidad.Size = UDim2.new(1, -4, 0, 32)
+cardVelocidad.BackgroundColor3 = THEME.BgSidebar
+cardVelocidad.BorderSizePixel = 0
+Instance.new("UICorner", cardVelocidad).CornerRadius = UDim.new(0, 5)
+
+local cardVelStroke = Instance.new("UIStroke", cardVelocidad)
+cardVelStroke.Color = THEME.Accent
+cardVelStroke.Thickness = 1
+
+local lblVel = Instance.new("TextLabel", cardVelocidad)
+lblVel.Size = UDim2.new(0, 180, 1, 0)
+lblVel.Position = UDim2.new(0, 8, 0, 0)
+lblVel.BackgroundTransparency = 1
+lblVel.Text = "⚡ Vel TP Global (0 = Instantáneo):"
+lblVel.TextColor3 = THEME.TextMain
+lblVel.Font = Enum.Font.RobotoMono
+lblVel.TextSize = 8
+lblVel.TextXAlignment = Enum.TextXAlignment.Left
+
+local inputVelocidadGlobal = Instance.new("TextBox", cardVelocidad)
+inputVelocidadGlobal.Size = UDim2.new(0, 45, 0, 20)
+inputVelocidadGlobal.Position = UDim2.new(1, -50, 0.5, -10)
+inputVelocidadGlobal.BackgroundColor3 = THEME.BgCard
+inputVelocidadGlobal.Text = "0"
+inputVelocidadGlobal.TextColor3 = THEME.AccentGlow
+inputVelocidadGlobal.Font = Enum.Font.RobotoMono
+inputVelocidadGlobal.TextSize = 9
+inputVelocidadGlobal.ClearTextOnFocus = false
+Instance.new("UICorner", inputVelocidadGlobal).CornerRadius = UDim.new(0, 4)
+Instance.new("UIStroke", inputVelocidadGlobal).Color = THEME.Border
+
+-- === FUNCIÓN PARA OBTENER LA ETAPA ACTUAL DEL JUGADOR ===
+local function obtenerEtapaActualJugador()
+	local stats = LocalPlayer:FindFirstChild("leaderstats") or LocalPlayer:FindFirstChild("stats")
+	if stats then
+		local stageVal = stats:FindFirstChild("Stage") 
+			or stats:FindFirstChild("StageValue") 
+			or stats:FindFirstChild("Level") 
+			or stats:FindFirstChild("Etapa")
+		if stageVal then
+			return tonumber(stageVal.Value)
+		end
+	end
+	return nil
+end
+
+local function crearTarjetaBase(titulo, sub)
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -4, 0, 38)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+	local cardStroke = Instance.new("UIStroke", card)
+	cardStroke.Color = THEME.Border
+	cardStroke.Thickness = 1
+
+	local tLabel = Instance.new("TextLabel", card)
+	tLabel.Size = UDim2.new(1, -55, 0, 14)
+	tLabel.Position = UDim2.new(0, 8, 0, 4)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titulo
+	tLabel.TextColor3 = THEME.TextMain
+	tLabel.Font = Enum.Font.RobotoMono
+	tLabel.TextSize = 10
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local sLabel = Instance.new("TextLabel", card)
+	sLabel.Size = UDim2.new(1, -55, 0, 12)
+	sLabel.Position = UDim2.new(0, 8, 0, 18)
+	sLabel.BackgroundTransparency = 1
+	sLabel.Text = sub
+	sLabel.TextColor3 = THEME.TextSub
+	sLabel.Font = Enum.Font.Gotham
+	sLabel.TextSize = 8
+	sLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	return card
+end
+
+local function crearTarjetaToggle(titulo, sub, colorActivo)
+	colorActivo = colorActivo or THEME.Accent
+	local card = crearTarjetaBase(titulo, sub)
+
+	local switchBg = Instance.new("TextButton", card)
+	switchBg.Size = UDim2.new(0, 38, 0, 20)
+	switchBg.Position = UDim2.new(1, -44, 0.5, -10)
+	switchBg.BackgroundColor3 = Color3.fromRGB(24, 15, 32)
+	switchBg.Text = ""
+	switchBg.AutoButtonColor = false
+	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(0, 5)
+
+	local switchStroke = Instance.new("UIStroke", switchBg)
+	switchStroke.Color = Color3.fromRGB(70, 30, 90)
+	switchStroke.Thickness = 1
+
+	local knob = Instance.new("Frame", switchBg)
+	knob.Size = UDim2.new(0, 14, 0, 14)
+	knob.Position = UDim2.new(0, 3, 0.5, -7)
+	knob.BackgroundColor3 = THEME.Accent
+	knob.BorderSizePixel = 0
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 3)
+
+	local estado = false
+
+	local function setEstado(nuevoEstado)
+		estado = nuevoEstado
+		if estado then
+			tween(switchBg, 0.22, {BackgroundColor3 = colorActivo})
+			switchStroke.Color = colorActivo
+			knob.BackgroundColor3 = Color3.fromRGB(18, 12, 24)
+			tween(knob, 0.22, {Position = UDim2.new(1, -17, 0.5, -7)})
+		else
+			tween(switchBg, 0.22, {BackgroundColor3 = Color3.fromRGB(24, 15, 32)})
+			switchStroke.Color = Color3.fromRGB(70, 30, 90)
+			knob.BackgroundColor3 = THEME.Accent
+			tween(knob, 0.22, {Position = UDim2.new(0, 3, 0.5, -7)})
+		end
+	end
+
+	return card, switchBg, setEstado
+end
+
+local mundosData = {}
+
+local function getRoot()
+	local c = LocalPlayer.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function obtenerPosicionEtapa(numMundo, numEtapa)
+	local ok, res = pcall(function()
+		local map = Workspace:FindFirstChild("Map") or Workspace
+		local world = map:FindFirstChild("World" .. numMundo) 
+			or map:FindFirstChild("World " .. numMundo) 
+			or map
+
+		local nombresPosibles = {
+			"Stage" .. numEtapa, "Stage " .. numEtapa, "Stage_" .. numEtapa,
+			"Etapa" .. numEtapa, "Etapa " .. numEtapa, "Checkpoint" .. numEtapa,
+			"Checkpoint " .. numEtapa, tostring(numEtapa)
+		}
+
+		local stageObj = nil
+		local stagesFolder = world:FindFirstChild("Stages") or world:FindFirstChild("Checkpoints") or world
+
+		for _, nombre in ipairs(nombresPosibles) do
+			stageObj = stagesFolder:FindFirstChild(nombre, true)
+			if stageObj then break end
+		end
+
+		if not stageObj then return nil end
+
+		local winObj = stageObj:FindFirstChild("NormalWin", true) 
+			or stageObj:FindFirstChild("UI", true) 
+			or stageObj:FindFirstChild("Win", true) 
+			or stageObj
+
+		if winObj:IsA("Model") then
+			local p = winObj:FindFirstChildWhichIsA("BasePart", true)
+			return p and p.CFrame or winObj:GetPivot()
+		elseif winObj:IsA("BasePart") then
+			return winObj.CFrame
+		end
+
+		return nil
+	end)
+
+	if ok and res then
+		return res + Vector3.new(0, 3.5, 0)
+	end
+	return nil
+end
+
+local function MoverAEtapa(numMundo, numEtapa)
+	local root = getRoot()
+	if not root then return end
+	
+	local pos = obtenerPosicionEtapa(numMundo, numEtapa)
+	if pos then
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.CFrame = pos
+	end
+end
+
+local function crearTarjetaOpciones(numMundo)
+	local maxEtapas = (numMundo == 5) and 6 or 10
+
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -4, 0, 32)
+	card.BackgroundColor3 = THEME.BgSidebar
+	card.BorderSizePixel = 0
+	card.Visible = false
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 5)
+
+	local lblVel = Instance.new("TextLabel", card)
+	lblVel.Size = UDim2.new(0, 50, 1, 0)
+	lblVel.Position = UDim2.new(0, 6, 0, 0)
+	lblVel.BackgroundTransparency = 1
+	lblVel.Text = "⏱️ Seg:"
+	lblVel.TextColor3 = THEME.TextSub
+	lblVel.Font = Enum.Font.RobotoMono
+	lblVel.TextSize = 9
+	lblVel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local boxVel = Instance.new("TextBox", card)
+	boxVel.Size = UDim2.new(0, 30, 0, 18)
+	boxVel.Position = UDim2.new(0, 48, 0.5, -9)
+	boxVel.BackgroundColor3 = THEME.BgCard
+	boxVel.Text = inputVelocidadGlobal.Text
+	boxVel.TextColor3 = THEME.Accent
+	boxVel.Font = Enum.Font.RobotoMono
+	boxVel.TextSize = 9
+	boxVel.ClearTextOnFocus = false
+	Instance.new("UICorner", boxVel).CornerRadius = UDim.new(0, 3)
+	Instance.new("UIStroke", boxVel).Color = THEME.Border
+
+	local lblEtapa = Instance.new("TextLabel", card)
+	lblEtapa.Size = UDim2.new(0, 100, 1, 0)
+	lblEtapa.Position = UDim2.new(0, 88, 0, 0)
+	lblEtapa.BackgroundTransparency = 1
+	lblEtapa.Text = string.format("🚩 Etapa (1-%d):", maxEtapas)
+	lblEtapa.TextColor3 = THEME.TextSub
+	lblEtapa.Font = Enum.Font.RobotoMono
+	lblEtapa.TextSize = 8
+	lblEtapa.TextXAlignment = Enum.TextXAlignment.Left
+
+	local boxEtapa = Instance.new("TextBox", card)
+	boxEtapa.Size = UDim2.new(0, 32, 0, 18)
+	boxEtapa.Position = UDim2.new(1, -38, 0.5, -9)
+	boxEtapa.BackgroundColor3 = THEME.BgCard
+	boxEtapa.Text = tostring(obtenerEtapaActualJugador() or maxEtapas)
+	boxEtapa.TextColor3 = THEME.Accent2
+	boxEtapa.Font = Enum.Font.RobotoMono
+	boxEtapa.TextSize = 9
+	boxEtapa.ClearTextOnFocus = false
+	Instance.new("UICorner", boxEtapa).CornerRadius = UDim.new(0, 3)
+	Instance.new("UIStroke", boxEtapa).Color = THEME.Border
+
+	boxVel:GetPropertyChangedSignal("Text"):Connect(function()
+		boxVel.Text = boxVel.Text:gsub("[^%d%.]", "")
+	end)
+
+	boxEtapa:GetPropertyChangedSignal("Text"):Connect(function()
+		boxEtapa.Text = boxEtapa.Text:gsub("[^%d]", "")
+		local val = tonumber(boxEtapa.Text)
+		if val then
+			if val > maxEtapas then boxEtapa.Text = tostring(maxEtapas) end
+			if val < 1 then boxEtapa.Text = "1" end
+
+			local etapaActual = tonumber(boxEtapa.Text) or 1
+			if mundosData[numMundo] and mundosData[numMundo].bucle then
+				MoverAEtapa(numMundo, etapaActual)
+			end
+		end
+	end)
+
+	return card, boxVel, boxEtapa
+end
+
+local function desactivarOtrosMundos(idxExcluido)
+	for i = 1, 5 do
+		if i ~= idxExcluido and mundosData[i] then
+			if mundosData[i].bucle then
+				mundosData[i].bucle = false
+				mundosData[i].setSwitch(false)
+				mundosData[i].fI.Visible = false
+				if mundosData[i].hilo then
+					task.cancel(mundosData[i].hilo)
+					mundosData[i].hilo = nil
+				end
+			end
+		end
+	end
+end
+
+for i = 1, 5 do
+	local colorTema = (i % 2 == 0) and THEME.Accent2 or THEME.Accent
+	local subTexto = (i == 5) and "TP a Etapa (1-6)" or "TP a Etapa (1-10)"
+	local card, switchBtn, setSwitch = crearTarjetaToggle("Mundo " .. i, subTexto, colorTema)
+	local fI, boxVel, boxEtapa = crearTarjetaOpciones(i)
+
+	mundosData[i] = {
+		bucle = false,
+		hilo = nil,
+		setSwitch = setSwitch,
+		fI = fI,
+		boxVel = boxVel,
+		boxEtapa = boxEtapa
+	}
+
+	switchBtn.MouseButton1Click:Connect(function()
+		local data = mundosData[i]
+		data.bucle = not data.bucle
+		setSwitch(data.bucle)
+
+		if data.bucle then
+			desactivarOtrosMundos(i)
+			data.fI.Visible = true
+
+			local etapaDetectada = obtenerEtapaActualJugador()
+			if etapaDetectada then
+				data.boxEtapa.Text = tostring(etapaDetectada)
+			end
+
+			local etapaSel = tonumber(data.boxEtapa.Text) or 1
+			MoverAEtapa(i, etapaSel)
+
+			data.hilo = task.spawn(function()
+				while data.bucle do
+					local e = tonumber(data.boxEtapa.Text) or 1
+					MoverAEtapa(i, e)
+
+					local t = tonumber(data.boxVel.Text) or tonumber(inputVelocidadGlobal.Text) or 0
+					if t <= 0 then
+						task.wait()
+					else
+						task.wait(t)
+					end
+				end
+			end)
+
+			notificar("TP M" .. i, "Teletransportando a Etapa " .. data.boxEtapa.Text, "success", 3)
+		else
+			data.fI.Visible = false
+			if data.hilo then
+				task.cancel(data.hilo)
+				data.hilo = nil
+			end
+			notificar("Auto TP M" .. i, "Desactivado", "warning", 3)
+		end
+	end)
+end
+
+inputVelocidadGlobal:GetPropertyChangedSignal("Text"):Connect(function()
+	inputVelocidadGlobal.Text = inputVelocidadGlobal.Text:gsub("[^%d%.]", "")
+	local val = inputVelocidadGlobal.Text
+	for i = 1, 5 do
+		if mundosData[i] and mundosData[i].boxVel then
+			mundosData[i].boxVel.Text = val
+		end
+	end
+end)
+
+contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	contentContainer.CanvasSize = UDim2.new(0, 0, 0, contentLayout.AbsoluteContentSize.Y + 6)
+end)
+
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		tween(mainFrame, 0.35, {
+			Size = UDim2.new(0, 380, 0, 260),
+			Position = UDim2.new(0.5, -190, 0.5, -130)
+		}, Enum.EasingStyle.Back)
+	else
+		local a = tween(mainFrame, 0.25, {
+			Size = UDim2.new(0, 0, 0, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function()
+			if not panelAbierto then mainFrame.Visible = false end
+		end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+
+togglePanel()
+
+-- ⏱️ AVISO DURANDO 10 SEGUNDOS
+notificar(
+	"AVISO", 
+	"Estar cerca de las etapas donde quieras hacer TP", 
+	"warning", 
+	10
+)
+
