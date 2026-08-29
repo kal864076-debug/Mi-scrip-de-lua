@@ -1,0 +1,453 @@
+-- [[ XZ OMEGA v20.4 - VIP PURPLE EDITION ]] --
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- Variables de Estado
+local flying = false
+local antiAfkActive = false
+local antiAfkConn = nil
+local flySpeed = 3000 -- Velocidad por defecto
+local bodyVelocity = nil
+local bodyGyro = nil
+local upPressed, downPressed = false, false
+local forwardPressed, backwardPressed = false, false
+
+-- Variables para Grabador de Movimientos
+local recordingActive = false
+local playingBack = false
+local recordedPath = {}
+local recordConn = nil
+
+-- Paleta de Colores VIP (Púrpura / Morado)
+local themeColor = Color3.fromRGB(15, 12, 22)
+local vipColor = Color3.fromRGB(180, 70, 255)   -- Púrpura Neón VIP
+
+-- GUI PRINCIPAL
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZOmegaVipGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- 1. ETIQUETA SOBRE LA CABEZA MEJORADA (VIP GLOW)
+local function setupOverheadTag(character)
+	local head = character:WaitForChild("Head", 5)
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	if not head then return end
+	
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	end
+	
+	if head:FindFirstChild("XZOmegaOverhead") then
+		head.XZOmegaOverhead:Destroy()
+	end
+	
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "XZOmegaOverhead"
+	billboard.Size = UDim2.new(0, 220, 0, 60)
+	billboard.StudsOffset = Vector3.new(0, 2.8, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = head
+	
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "RainbowLabel"
+	nameLabel.Size = UDim2.new(1, 0, 1, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = "👑 XZ OMEGA [VIP]"
+	nameLabel.TextSize = 20
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextStrokeTransparency = 0
+	nameLabel.TextStrokeColor3 = Color3.fromRGB(50, 10, 80)
+	nameLabel.Parent = billboard
+end
+
+if player.Character then setupOverheadTag(player.Character) end
+player.CharacterAdded:Connect(function(char)
+	task.wait(0.5)
+	setupOverheadTag(char)
+end)
+
+-- BOTÓN FLOTANTE CON LA FOTO DE PERFIL DEL PERSONAJE
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 48, 0, 48)
+toggleBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(22, 16, 32)
+toggleBtn.Text = ""
+toggleBtn.Active = true
+toggleBtn.Draggable = true
+toggleBtn.Visible = true
+toggleBtn.Parent = screenGui
+
+local cornerToggle = Instance.new("UICorner")
+cornerToggle.CornerRadius = UDim.new(0, 12)
+cornerToggle.Parent = toggleBtn
+
+local strokeToggle = Instance.new("UIStroke")
+strokeToggle.Color = vipColor
+strokeToggle.Thickness = 2
+strokeToggle.Parent = toggleBtn
+
+local avatarImg = Instance.new("ImageLabel")
+avatarImg.Size = UDim2.new(1, -6, 1, -6)
+avatarImg.Position = UDim2.new(0, 3, 0, 3)
+avatarImg.BackgroundTransparency = 1
+avatarImg.Parent = toggleBtn
+
+local avatarCorner = Instance.new("UICorner")
+avatarCorner.CornerRadius = UDim.new(1, 0)
+avatarCorner.Parent = avatarImg
+
+task.spawn(function()
+	pcall(function()
+		avatarImg.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+	end)
+end)
+
+-- VENTANA PRINCIPAL PÚRPURA
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 360, 0, 340)
+mainFrame.Position = UDim2.new(0.5, -180, 0.5, -170)
+mainFrame.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
+mainFrame.Visible = true
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(65, 35, 95)
+mainStroke.Thickness = 1.5
+mainStroke.Parent = mainFrame
+
+-- BARRA SUPERIOR
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 36)
+topBar.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
+topBar.BackgroundTransparency = 1
+topBar.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 14, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ XZ HUB PREMIUM [VIP]"
+titleLabel.TextColor3 = Color3.fromRGB(220, 190, 255)
+titleLabel.TextSize = 11
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = topBar
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 24, 0, 24)
+closeBtn.Position = UDim2.new(1, -30, 0, 6)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(180, 150, 200)
+closeBtn.TextSize = 13
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = topBar
+
+closeBtn.MouseButton1Click:Connect(function() mainFrame.Visible = false end)
+toggleBtn.MouseButton1Click:Connect(function() mainFrame.Visible = not mainFrame.Visible end)
+
+-- CONTENEDOR DESPLAZABLE
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, -16, 1, -46)
+scrollFrame.Position = UDim2.new(0, 8, 0, 38)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 3
+scrollFrame.ScrollBarImageColor3 = vipColor
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 460)
+scrollFrame.Parent = mainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = scrollFrame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 6)
+
+local function createCard(titleText, descText, layoutOrder)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1, 0, 0, 48)
+	card.BackgroundColor3 = Color3.fromRGB(24, 18, 36)
+	card.LayoutOrder = layoutOrder
+	card.Parent = scrollFrame
+	
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0, 8)
+	cardCorner.Parent = card
+	
+	local tLabel = Instance.new("TextLabel")
+	tLabel.Size = UDim2.new(0.5, 0, 0, 18)
+	tLabel.Position = UDim2.new(0, 12, 0, 7)
+	tLabel.BackgroundTransparency = 1
+	tLabel.Text = titleText
+	tLabel.TextColor3 = Color3.fromRGB(240, 230, 255)
+	tLabel.TextSize = 11
+	tLabel.Font = Enum.Font.GothamBold
+	tLabel.TextXAlignment = Enum.TextXAlignment.Left
+	tLabel.Parent = card
+	
+	local dLabel = Instance.new("TextLabel")
+	dLabel.Size = UDim2.new(0.5, 0, 0, 14)
+	dLabel.Position = UDim2.new(0, 12, 0, 25)
+	dLabel.BackgroundTransparency = 1
+	dLabel.Text = descText
+	dLabel.TextColor3 = Color3.fromRGB(150, 130, 180)
+	dLabel.TextSize = 9
+	dLabel.Font = Enum.Font.Gotham
+	dLabel.TextXAlignment = Enum.TextXAlignment.Left
+	dLabel.Parent = card
+	
+	return card
+end
+
+local function createToggle(card, defaultState, callback)
+	local switchBg = Instance.new("Frame")
+	switchBg.Size = UDim2.new(0, 46, 0, 22)
+	switchBg.Position = UDim2.new(1, -54, 0.5, -11)
+	switchBg.BackgroundColor3 = defaultState and vipColor or Color3.fromRGB(50, 38, 70)
+	switchBg.Parent = card
+	
+	local switchCorner = Instance.new("UICorner")
+	switchCorner.CornerRadius = UDim.new(1, 0)
+	switchCorner.Parent = switchBg
+	
+	local circle = Instance.new("Frame")
+	circle.Size = UDim2.new(0, 16, 0, 16)
+	circle.Position = defaultState and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+	circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	circle.Parent = switchBg
+	
+	local circleCorner = Instance.new("UICorner")
+	circleCorner.CornerRadius = UDim.new(1, 0)
+	circleCorner.Parent = circle
+	
+	local stateLabel = Instance.new("TextLabel")
+	stateLabel.Size = UDim2.new(1, 0, 1, 0)
+	stateLabel.BackgroundTransparency = 1
+	stateLabel.Text = defaultState and "ON" or "OFF"
+	stateLabel.TextColor3 = defaultState and Color3.fromRGB(20, 10, 30) or Color3.fromRGB(160, 140, 180)
+	stateLabel.TextSize = 8
+	stateLabel.Font = Enum.Font.GothamBold
+	stateLabel.Parent = switchBg
+	
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, 0, 1, 0)
+	button.BackgroundTransparency = 1
+	button.Text = ""
+	button.Parent = switchBg
+	
+	local state = defaultState
+	button.MouseButton1Click:Connect(function()
+		state = not state
+		stateLabel.Text = state and "ON" or "OFF"
+		switchBg.BackgroundColor3 = state and vipColor or Color3.fromRGB(50, 38, 70)
+		stateLabel.TextColor3 = state and Color3.fromRGB(20, 10, 30) or Color3.fromRGB(160, 140, 180)
+		circle.Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+		callback(state)
+	end)
+end
+
+-- CREACIÓN DE CONTROLES FLOTANTES (4 BOTONES TRANSPARENTES Y ESTILIZADOS)
+local floatingControlsGui = Instance.new("ScreenGui")
+floatingControlsGui.Name = "XZOmegaFloatingControls"
+floatingControlsGui.ResetOnSpawn = false
+floatingControlsGui.Enabled = false
+floatingControlsGui.Parent = player:WaitForChild("PlayerGui")
+
+local function createFloatingButton(name, text, defaultPos)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0, 65, 0, 35)
+	btn.Position = defaultPos
+	btn.BackgroundColor3 = Color3.fromRGB(25, 15, 40)
+	btn.BackgroundTransparency = 0.4 -- Efecto semi-transparente elegante
+	btn.Text = text
+	btn.TextColor3 = vipColor
+	btn.TextSize = 10
+	btn.Font = Enum.Font.GothamBold
+	btn.Active = true
+	btn.Draggable = true
+	btn.Parent = floatingControlsGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = btn
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = vipColor
+	stroke.Transparency = 0.3
+	stroke.Thickness = 1.5
+	stroke.Parent = btn
+
+	return btn
+end
+
+local floatFwd = createFloatingButton("FloatFwd", "FRENTE", UDim2.new(0.8, 0, 0.35, 0))
+local floatBwd = createFloatingButton("FloatBwd", "ATRÁS", UDim2.new(0.8, 0, 0.5, 0))
+local floatUp = createFloatingButton("FloatUp", "SUBIR", UDim2.new(0.7, 0, 0.42, 0))
+local floatDown = createFloatingButton("FloatDown", "BAJAR", UDim2.new(0.9, 0, 0.42, 0))
+
+floatFwd.MouseButton1Down:Connect(function() forwardPressed = true end)
+floatFwd.MouseButton1Up:Connect(function() forwardPressed = false end)
+floatBwd.MouseButton1Down:Connect(function() backwardPressed = true end)
+floatBwd.MouseButton1Up:Connect(function() backwardPressed = false end)
+floatUp.MouseButton1Down:Connect(function() upPressed = true end)
+floatUp.MouseButton1Up:Connect(function() upPressed = false end)
+floatDown.MouseButton1Down:Connect(function() downPressed = true end)
+floatDown.MouseButton1Up:Connect(function() downPressed = false end)
+
+-- TARJETA 1: VUELO VIP
+local flyCard = createCard("Vuelo VIP Avanzado", "Activa el vuelo personalizado", 1)
+createToggle(flyCard, false, function(state)
+	if state then
+		local character = player.Character
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			local hrp = character.HumanoidRootPart
+			bodyVelocity = Instance.new("BodyVelocity")
+			bodyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+			bodyVelocity.Velocity = Vector3.zero
+			bodyVelocity.Parent = hrp
+
+			bodyGyro = Instance.new("BodyGyro")
+			bodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+			bodyGyro.CFrame = hrp.CFrame
+			bodyGyro.Parent = hrp
+
+			flying = true
+		end
+	else
+		flying = false
+		if bodyVelocity then bodyVelocity:Destroy() end
+		if bodyGyro then bodyGyro:Destroy() end
+	end
+end)
+
+-- TARJETA 2: MODIFICAR VELOCIDAD DE VUELO
+local speedCard = createCard("Velocidad de Vuelo", "Escribe la velocidad deseada", 2)
+
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(0, 70, 0, 24)
+speedBox.Position = UDim2.new(1, -78, 0.5, -12)
+speedBox.BackgroundColor3 = Color3.fromRGB(35, 25, 55)
+speedBox.Text = tostring(flySpeed)
+speedBox.TextColor3 = vipColor
+speedBox.TextSize = 11
+speedBox.Font = Enum.Font.GothamBold
+speedBox.ClearTextOnFocus = false
+speedBox.Parent = speedCard
+
+local sBoxCorner = Instance.new("UICorner")
+sBoxCorner.CornerRadius = UDim.new(0, 6)
+sBoxCorner.Parent = speedBox
+
+speedBox.FocusLost:Connect(function(enterPressed)
+	local num = tonumber(speedBox.Text)
+	if num then
+		flySpeed = num
+	else
+		speedBox.Text = tostring(flySpeed)
+	end
+end)
+
+-- TARJETA 3: BOTONES FLOTANTES DE DIRECCIÓN
+local floatCard = createCard("Botones Flotantes", "Muestra los 4 controles en pantalla", 3)
+createToggle(floatCard, false, function(state)
+	floatingControlsGui.Enabled = state
+end)
+
+-- TARJETA 4: GRABAR MOVIMIENTOS
+local recordCard = createCard("Grabar Movimientos", "Empieza a registrar tus acciones", 4)
+createToggle(recordCard, false, function(state)
+	if state then
+		recordedPath = {}
+		recordingActive = true
+		playingBack = false
+		
+		if recordConn then recordConn:Disconnect() end
+		recordConn = RunService.RenderStepped:Connect(function()
+			if recordingActive and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+				table.insert(recordedPath, player.Character.HumanoidRootPart.CFrame)
+			end
+		end)
+	else
+		recordingActive = false
+		if recordConn then recordConn:Disconnect() end
+	end
+end)
+
+-- TARJETA 5: REPRODUCIR GRABACIÓN
+local playCard = createCard("Reproducir Grabación", "Repite exactamente lo que grabaste", 5)
+createToggle(playCard, false, function(state)
+	if state then
+		if #recordedPath > 0 then
+			playingBack = true
+			task.spawn(function()
+				while playingBack do
+					for _, cf in ipairs(recordedPath) do
+						if not playingBack then break end
+						if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+							player.Character.HumanoidRootPart.CFrame = cf
+						end
+						RunService.RenderStepped:Wait()
+					end
+					task.wait(0.5)
+				end
+			end)
+		end
+	else
+		playingBack = false
+	end
+end)
+
+-- TARJETA 6: ANTI AFK
+local afkCard = createCard("Anti AFK Supremo", "Protección total contra inactividad", 6)
+createToggle(afkCard, false, function(state)
+	antiAfkActive = state
+	if antiAfkActive then
+		antiAfkConn = player.Idled:Connect(function()
+			VirtualUser:Button2Down(Vector2.new(0,0), camera.CFrame)
+			task.wait(1)
+			VirtualUser:Button2Up(Vector2.new(0,0), camera.CFrame)
+		end)
+	else
+		if antiAfkConn then
+			antiAfkConn:Disconnect()
+			antiAfkConn = nil
+		end
+	end
+end)
+
+-- BUCLE PRINCIPAL PARA EL VUELO
+RunService.RenderStepped:Connect(function()
+	if flying and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		bodyGyro.CFrame = camera.CFrame
+		
+		local vMove = 0
+		if upPressed then vMove = 1 end
+		if downPressed then vMove = -1 end
+		
+		local hMove = 0
+		if forwardPressed then hMove = 1 end
+		if backwardPressed then hMove = -1 end
+		
+		local lookVector = camera.CFrame.LookVector
+		local moveDir = Vector3.new(0, vMove, 0)
+		if hMove ~= 0 then
+			moveDir = moveDir + (lookVector * hMove)
+		end
+		
+		bodyVelocity.Velocity = moveDir * flySpeed
+	end
+end)
+
