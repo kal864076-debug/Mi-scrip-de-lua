@@ -1,0 +1,110 @@
+-- Cargar librería Rayfield UI
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+--------------------------------------------------------------------
+-- 1. TEXTO RAINBOW DECORADO SOBRE LA CABEZA (✨ Bypass hub ✨)
+--------------------------------------------------------------------
+local billboard = nil
+
+local function crearTextoCabeza(player)
+	local character = player.Character or player.CharacterAdded:Wait()
+	local head = character:WaitForChild("Head", 5)
+	if not head then return end
+
+	if head:FindFirstChild("BypassHubTag") then
+		head.BypassHubTag:Destroy()
+	end
+
+	billboard = Instance.new("BillboardGui")
+	billboard.Name = "BypassHubTag"
+	billboard.Adornee = head
+	billboard.Size = UDim2.new(0, 250, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 2.8, 0)
+	billboard.AlwaysOnTop = true
+
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.Text = "✨ Bypass hub ✨"
+	textLabel.TextScaled = true
+	textLabel.Font = Enum.Font.SpecialElite
+	textLabel.Parent = billboard
+
+	billboard.Parent = head
+
+	-- Animación Rainbow
+	task.spawn(function()
+		local hue = 0
+		while billboard and billboard.Parent do
+			hue = (hue + 0.005) % 1
+			textLabel.TextColor3 = Color3.fromHSV(hue, 0.85, 1)
+			task.wait(0.03)
+		end
+	end)
+end
+
+if LocalPlayer.Character then
+	crearTextoCabeza(LocalPlayer)
+end
+LocalPlayer.CharacterAdded:Connect(function()
+	task.wait(1)
+	crearTextoCabeza(LocalPlayer)
+end)
+
+--------------------------------------------------------------------
+-- 2. VENTANA PRINCIPAL (Bypass scripts - Anaranjado y Negro)
+--------------------------------------------------------------------
+local Window = Rayfield:CreateWindow({
+	Name = "Bypass scripts 🐵",
+	LoadingTitle = "Cargando Bypass Scripts...",
+	LoadingSubtitle = "Modo Celular",
+	ConfigurationSaving = { Enabled = false },
+	Discord = { Enabled = false },
+	KeySystem = false,
+	Theme = "AmberGlow" -- Tema por defecto con estilo anaranjado/oscuro integrado
+})
+
+--------------------------------------------------------------------
+-- 3. PESTAÑA PRINCIPAL DE SCRIPTS
+--------------------------------------------------------------------
+local TabScripts = Window:CreateTab("Scripts", 4483362458)
+
+TabScripts:CreateSection("🔥 Selección de Script 🔥")
+
+-- Imagen representativa del mono dentro del menú
+TabScripts:CreateLabel("🐒 Juego: Escapa del Mono")
+
+-- Botón para ejecutar el script
+TabScripts:CreateButton({
+	Name = "escapa del mono (Bypass)",
+	Callback = function()
+		-- Cierra el menú y quita el texto sobre la cabeza
+		if billboard then
+			billboard:Destroy()
+		end
+		Rayfield:Destroy()
+
+		-- Ejecuta el script que pediste
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/kal864076-debug/script/refs/heads/main/%F0%9F%8C%8E%F0%9F%8C%8E%F0%9F%8C%8E"))()
+	end,
+})
+
+--------------------------------------------------------------------
+-- 4. PESTAÑA DE INFORMACIÓN
+--------------------------------------------------------------------
+local TabInfo = Window:CreateTab("Info", 4483362458)
+
+TabInfo:CreateSection("✨ Estado ✨")
+
+TabInfo:CreateParagraph({
+	Title = "⚡ Aproximadamente...",
+	Content = "⚡ ━━━━━━━━━━━━━━━━━━━━━━ ⚡\n" ..
+	          "  Aproximadamente en la próxima versión:\n" ..
+	          "  • Más scripts automáticos\n" ..
+	          "  • Bypass para más juegos\n" ..
+	          "  • Menú rápido flotante\n" ..
+	          "⚡ ━━━━━━━━━━━━━━━━━━━━━━ ⚡"
+})
