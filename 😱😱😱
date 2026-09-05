@@ -1,0 +1,475 @@
+--[[
+    🤖 XZ OMEGA HUB - MUNDO 4 (CHECKPOINTS 1 AL 9 + STAGE 9 END + FARM)
+    Panel compacto, enlace de Discord, monitor de etapas y velocidad de TP a 0.5s.
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local SoundService = game:GetService("SoundService")
+local LocalPlayer = Players.LocalPlayer
+
+local THEME = {
+	BgPrimary   = Color3.fromRGB(18, 22, 18),
+	BgSidebar   = Color3.fromRGB(12, 16, 12),
+	BgCard      = Color3.fromRGB(26, 34, 26),
+	Accent      = Color3.fromRGB(40, 200, 100),
+	Success     = Color3.fromRGB(0, 255, 136),
+	Warning     = Color3.fromRGB(255, 170, 0),
+	Error       = Color3.fromRGB(255, 35, 75),
+	TextMain    = Color3.fromRGB(235, 255, 235),
+	TextSub     = Color3.fromRGB(145, 185, 155),
+	Border      = Color3.fromRGB(30, 140, 70)
+}
+
+local panelAbierto = false
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZOmegaHub_Mundo4"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+-- Función para reproducir sonido de clic
+local function reproducirSonido(activado)
+	local sound = Instance.new("Sound")
+	sound.SoundId = activado and "rbxassetid://9114220033" or "rbxassetid://9114220727"
+	sound.Volume = 0.6
+	sound.Parent = SoundService
+	sound:Play()
+	
+	sound.Ended:Connect(function()
+		sound:Destroy()
+	end)
+end
+
+local function notificar(titulo, msg, tipo, duracion)
+	duracion = duracion or 3
+	local color = THEME.Accent
+	local icon = "✨"
+	if tipo == "error" then color = THEME.Error; icon = "🚨"
+	elseif tipo == "warning" then color = THEME.Warning; icon = "⚠️"
+	end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 240, 0, 52)
+	toast.Position = UDim2.new(1, 20, 0.78, 0)
+	toast.BackgroundColor3 = THEME.BgCard
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 6)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.4
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -10, 0, 16)
+	t1.Position = UDim2.new(0, 8, 0, 4)
+	t1.BackgroundTransparency = 1
+	t1.Text = icon .. "  " .. string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.RobotoMono
+	t1.TextSize = 10
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -12, 0, 28)
+	t2.Position = UDim2.new(0, 8, 0, 20)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 8
+	t2.TextWrapped = true
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.35, {Position = UDim2.new(1, -255, 0.78, 0)}, Enum.EasingStyle.Back)
+	task.delay(duracion, function()
+		local out = tween(toast, 0.3, {Position = UDim2.new(1, 20, 0.78, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+-- Botón Flotante
+local btnAbrir = Instance.new("ImageButton")
+btnAbrir.Size = UDim2.new(0, 52, 0, 52)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Image = "rbxassetid://84658427883904"
+btnAbrir.Visible = true
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 10)
+
+local strokeBtn = Instance.new("UIStroke", btnAbrir)
+strokeBtn.Color = THEME.Success
+strokeBtn.Thickness = 1.8
+
+-- Panel Principal
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 310, 0, 205)
+mainFrame.Position = UDim2.new(0.5, -155, 0.5, -102)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Color = THEME.Border
+mainStroke.Thickness = 1.2
+
+-- Fondo de Menú
+local bgImage = Instance.new("ImageLabel", mainFrame)
+bgImage.Size = UDim2.new(1, 0, 1, 0)
+bgImage.BackgroundTransparency = 1
+bgImage.Image = "rbxassetid://103178019849738"
+bgImage.ScaleType = Enum.ScaleType.Slice
+bgImage.ImageTransparency = 0.82
+bgImage.ZIndex = 0
+Instance.new("UICorner", bgImage).CornerRadius = UDim.new(0, 8)
+
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 38)
+topBar.BackgroundTransparency = 1
+topBar.ZIndex = 2
+
+local avatarHeader = Instance.new("ImageLabel", topBar)
+avatarHeader.Size = UDim2.new(0, 26, 0, 26)
+avatarHeader.Position = UDim2.new(0, 10, 0.5, -13)
+avatarHeader.BackgroundColor3 = THEME.BgCard
+avatarHeader.Image = "rbxassetid://84658427883904"
+avatarHeader.ZIndex = 2
+Instance.new("UICorner", avatarHeader).CornerRadius = UDim.new(0, 6)
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -110, 0, 14)
+titleLabel.Position = UDim2.new(0, 42, 0, 5)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "XZ OMEGA HUB"
+titleLabel.TextColor3 = THEME.TextMain
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 10
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 2
+
+local subTitleLabel = Instance.new("TextLabel", topBar)
+subTitleLabel.Size = UDim2.new(1, -110, 0, 12)
+subTitleLabel.Position = UDim2.new(0, 42, 0, 19)
+subTitleLabel.BackgroundTransparency = 1
+subTitleLabel.Text = "MUNDO 4 SYSTEM"
+subTitleLabel.TextColor3 = THEME.TextSub
+subTitleLabel.Font = Enum.Font.Gotham
+subTitleLabel.TextSize = 7
+subTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+subTitleLabel.ZIndex = 2
+
+-- Botón de Discord
+local btnDiscord = Instance.new("TextButton", topBar)
+btnDiscord.Size = UDim2.new(0, 24, 0, 24)
+btnDiscord.Position = UDim2.new(1, -56, 0.5, -12)
+btnDiscord.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+btnDiscord.Text = "💬"
+btnDiscord.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnDiscord.Font = Enum.Font.GothamBold
+btnDiscord.TextSize = 10
+btnDiscord.ZIndex = 2
+Instance.new("UICorner", btnDiscord).CornerRadius = UDim.new(0, 6)
+hover(btnDiscord, Color3.fromRGB(88, 101, 242), Color3.fromRGB(114, 137, 218))
+
+btnDiscord.MouseButton1Click:Connect(function()
+	pcall(function()
+		setclipboard("https://discord.gg/Kk7TDmQACG")
+	end)
+	notificar("DISCORD", "¡Enlace copiado al portapapeles!", "success", 4)
+end)
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 20, 0, 20)
+btnCerrar.Position = UDim2.new(1, -26, 0.5, -10)
+btnCerrar.BackgroundColor3 = THEME.BgCard
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextSub
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 9
+btnCerrar.ZIndex = 2
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 5)
+hover(btnCerrar, THEME.BgCard, THEME.Error)
+
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -20, 1, -48)
+contentContainer.Position = UDim2.new(0, 10, 0, 42)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 2
+contentContainer.ScrollBarImageColor3 = THEME.Success
+contentContainer.ZIndex = 2
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 6)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Tarjeta de Estado
+local cardInfo = Instance.new("Frame", contentContainer)
+cardInfo.Size = UDim2.new(1, 0, 0, 42)
+cardInfo.BackgroundColor3 = THEME.BgCard
+cardInfo.BackgroundTransparency = 0.2
+cardInfo.BorderSizePixel = 0
+cardInfo.ZIndex = 2
+Instance.new("UICorner", cardInfo).CornerRadius = UDim.new(0, 6)
+
+local cardInfoStroke = Instance.new("UIStroke", cardInfo)
+cardInfoStroke.Color = THEME.Border
+cardInfoStroke.Thickness = 1
+
+local infoTitle = Instance.new("TextLabel", cardInfo)
+infoTitle.Size = UDim2.new(1, -20, 0, 14)
+infoTitle.Position = UDim2.new(0, 10, 0, 5)
+infoTitle.BackgroundTransparency = 1
+infoTitle.Text = "ESTADO ACTUAL (MUNDO 4)"
+infoTitle.TextColor3 = THEME.TextSub
+infoTitle.Font = Enum.Font.GothamBold
+infoTitle.TextSize = 7
+infoTitle.TextXAlignment = Enum.TextXAlignment.Left
+infoTitle.ZIndex = 2
+
+local stageStatusLabel = Instance.new("TextLabel", cardInfo)
+stageStatusLabel.Size = UDim2.new(1, -20, 0, 16)
+stageStatusLabel.Position = UDim2.new(0, 10, 0, 20)
+stageStatusLabel.BackgroundTransparency = 1
+stageStatusLabel.Text = "Inactivo / Esperando activación"
+stageStatusLabel.TextColor3 = THEME.Success
+stageStatusLabel.Font = Enum.Font.GothamBold
+stageStatusLabel.TextSize = 9
+stageStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+stageStatusLabel.ZIndex = 2
+
+-- Tarjeta TELEGUIADO
+local card = Instance.new("Frame", contentContainer)
+card.Size = UDim2.new(1, 0, 0, 56)
+card.BackgroundColor3 = THEME.BgCard
+card.BackgroundTransparency = 0.2
+card.BorderSizePixel = 0
+card.ZIndex = 2
+Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+local cardStroke = Instance.new("UIStroke", card)
+cardStroke.Color = THEME.Border
+cardStroke.Thickness = 1
+
+local tLabel = Instance.new("TextLabel", card)
+tLabel.Size = UDim2.new(1, -60, 0, 16)
+tLabel.Position = UDim2.new(0, 10, 0, 8)
+tLabel.BackgroundTransparency = 1
+tLabel.Text = "TELEGUIADO MUNDO 4"
+tLabel.TextColor3 = THEME.TextMain
+tLabel.Font = Enum.Font.GothamBold
+tLabel.TextSize = 10
+tLabel.TextXAlignment = Enum.TextXAlignment.Left
+tLabel.ZIndex = 2
+
+local sLabel = Instance.new("TextLabel", card)
+sLabel.Size = UDim2.new(1, -60, 0, 14)
+sLabel.Position = UDim2.new(0, 10, 0, 26)
+sLabel.BackgroundTransparency = 1
+sLabel.Text = "Checkpoints 1-9 (Vel. 0.5s) + Stage End"
+sLabel.TextColor3 = THEME.TextSub
+sLabel.Font = Enum.Font.Gotham
+sLabel.TextSize = 7
+sLabel.TextXAlignment = Enum.TextXAlignment.Left
+sLabel.ZIndex = 2
+
+-- Switch UI
+local switchBg = Instance.new("TextButton", card)
+switchBg.Size = UDim2.new(0, 40, 0, 22)
+switchBg.Position = UDim2.new(1, -50, 0.5, -11)
+switchBg.BackgroundColor3 = Color3.fromRGB(35, 45, 35)
+switchBg.Text = ""
+switchBg.AutoButtonColor = false
+switchBg.ZIndex = 2
+Instance.new("UICorner", switchBg).CornerRadius = UDim.new(0, 11)
+
+local switchStroke = Instance.new("UIStroke", switchBg)
+switchStroke.Color = Color3.fromRGB(60, 80, 60)
+switchStroke.Thickness = 1
+
+local knob = Instance.new("Frame", switchBg)
+knob.Size = UDim2.new(0, 16, 0, 16)
+knob.Position = UDim2.new(0, 3, 0.5, -8)
+knob.BackgroundColor3 = THEME.TextSub
+knob.BorderSizePixel = 0
+knob.ZIndex = 2
+Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 8)
+
+local function getRoot()
+	local c = LocalPlayer.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+-- Obtener Checkpoint 1 al 9 del Mundo 4
+local function obtenerHitboxCheckpointMundo4(numEtapa)
+	local ok, res = pcall(function()
+		local checkpointObj = Workspace.Map.Checkpoints.World4:FindFirstChild("Checkpoint" .. numEtapa)
+		if checkpointObj then
+			local hitbox = checkpointObj:FindFirstChild("Hitbox")
+			if hitbox and hitbox:IsA("BasePart") then
+				return hitbox.CFrame + Vector3.new(0, 3, 0)
+			end
+		end
+		return nil
+	end)
+	if ok and res then return res end
+	return nil
+end
+
+-- Obtener workspace.Map.World4.Stages.Stage9.StageEnd.Part
+local function obtenerPosicionStageEndPart()
+	local ok, res = pcall(function()
+		local partObj = Workspace.Map.World4.Stages.Stage9.StageEnd.Part
+		if partObj and partObj:IsA("BasePart") then
+			return partObj.CFrame + Vector3.new(0, 3, 0)
+		end
+		return nil
+	end)
+	if ok and res then return res end
+	return nil
+end
+
+-- Obtener workspace.Map.World4.Stages.Stage9.NormalWin.UI (Etapa 10 final / Farm)
+local function obtenerPosicionNormalWinUI()
+	local ok, res = pcall(function()
+		local uiObj = Workspace.Map.World4.Stages.Stage9.NormalWin.UI
+		if uiObj:IsA("BasePart") then
+			return uiObj.CFrame + Vector3.new(0, 3, 0)
+		elseif uiObj:IsA("Model") then
+			local p = uiObj:FindFirstChildWhichIsA("BasePart", true)
+			return p and (p.CFrame + Vector3.new(0, 3, 0)) or uiObj:GetPivot()
+		end
+		return nil
+	end)
+	if ok and res then return res end
+	return nil
+end
+
+local teleguiadoActivo = false
+local hiloSecuencia = nil
+
+local function actualizarSwitchVisual(estado)
+	if estado then
+		tween(switchBg, 0.22, {BackgroundColor3 = THEME.Success})
+		switchStroke.Color = THEME.Success
+		knob.BackgroundColor3 = THEME.BgCard
+		tween(knob, 0.22, {Position = UDim2.new(1, -19, 0.5, -8)})
+	else
+		tween(switchBg, 0.22, {BackgroundColor3 = Color3.fromRGB(35, 45, 35)})
+		switchStroke.Color = Color3.fromRGB(60, 80, 60)
+		knob.BackgroundColor3 = THEME.TextSub
+		tween(knob, 0.22, {Position = UDim2.new(0, 3, 0.5, -8)})
+	end
+end
+
+switchBg.MouseButton1Click:Connect(function()
+	teleguiadoActivo = not teleguiadoActivo
+	actualizarSwitchVisual(teleguiadoActivo)
+	
+	reproducirSonido(teleguiadoActivo)
+
+	if teleguiadoActivo then
+		notificar("XZ OMEGA", "Iniciando recorrido (Velocidad 0.5s)...", "success", 3)
+		
+		hiloSecuencia = task.spawn(function()
+			while teleguiadoActivo do
+				-- 1. Recorrido secuencial Checkpoints 1 al 9 a velocidad 0.5 segundos exactos
+				for i = 1, 9 do
+					if not teleguiadoActivo then break end
+					stageStatusLabel.Text = "Avanzando a: Checkpoint " .. i
+					local pos = obtenerHitboxCheckpointMundo4(i)
+					local root = getRoot()
+					if root and pos then
+						root.AssemblyLinearVelocity = Vector3.zero
+						root.AssemblyAngularVelocity = Vector3.zero
+						root.CFrame = pos
+					end
+					task.wait(0.5)
+				end
+
+				-- 2. Teletransportar a StageEnd Part
+				if not teleguiadoActivo then break end
+				stageStatusLabel.Text = "Llegando a StageEnd Part"
+				local endPartPos = obtenerPosicionStageEndPart()
+				local root = getRoot()
+				if root and endPartPos then
+					root.AssemblyLinearVelocity = Vector3.zero
+					root.AssemblyAngularVelocity = Vector3.zero
+					root.CFrame = endPartPos
+				end
+				task.wait(0.5)
+
+				-- 3. Quedarse farmeando en NormalWin.UI (Última etapa 10)
+				stageStatusLabel.Text = "Farm Activo: Etapa 10 (NormalWin.UI)"
+				notificar("AUTOFARM", "¡En la última etapa! Farmeando en NormalWin.UI", "success", 2)
+				while teleguiadoActivo do
+					local finalRoot = getRoot()
+					local finalPos = obtenerPosicionNormalWinUI()
+					if finalRoot and finalPos then
+						finalRoot.AssemblyLinearVelocity = Vector3.zero
+						finalRoot.AssemblyAngularVelocity = Vector3.zero
+						finalRoot.CFrame = finalPos
+					end
+					task.wait(0.3)
+				end
+			end
+		end)
+	else
+		if hiloSecuencia then
+			task.cancel(hiloSecuencia)
+			hiloSecuencia = nil
+		end
+		stageStatusLabel.Text = "Inactivo / Esperando activación"
+		notificar("XZ OMEGA", "Teleguiado desactivado.", "warning", 2)
+	end
+end)
+
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		tween(mainFrame, 0.35, {
+			Size = UDim2.new(0, 310, 0, 205),
+			Position = UDim2.new(0.5, -155, 0.5, -102)
+		}, Enum.EasingStyle.Back)
+	else
+		local a = tween(mainFrame, 0.25, {
+			Size = UDim2.new(0, 0, 0, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function()
+			if not panelAbierto then mainFrame.Visible = false end
+		end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+
+togglePanel()
+
