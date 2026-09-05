@@ -1,0 +1,404 @@
+--[[
+    🤖 XZ SISTEMA TP - v18.5 (ACTUALIZADO - MUNDO 5 CON 9 ETAPAS) [SIN KEY]
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Stats = game:GetService("Stats")
+local LocalPlayer = Players.LocalPlayer
+
+local THEME = {
+	BgPrimary   = Color3.fromRGB(18, 12, 24),
+	BgSidebar   = Color3.fromRGB(12, 8, 18),
+	BgCard      = Color3.fromRGB(30, 20, 42),
+	Accent      = Color3.fromRGB(175, 40, 255),
+	Success     = Color3.fromRGB(0, 255, 136),
+	Warning     = Color3.fromRGB(255, 170, 0),
+	Error       = Color3.fromRGB(255, 35, 75),
+	TextMain    = Color3.fromRGB(250, 235, 255),
+	TextSub     = Color3.fromRGB(175, 145, 195)
+}
+
+local panelAbierto = false
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XZ_SistemaTP_Compacto"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local function tween(obj, t, props, style, dir)
+	style = style or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local a = TweenService:Create(obj, TweenInfo.new(t, style, dir), props)
+	a:Play()
+	return a
+end
+
+local function notificar(titulo, msg, tipo, duracion)
+	duracion = duracion or 2
+	local color = THEME.Success
+	if tipo == "warning" then color = THEME.Warning
+	elseif tipo == "error" then color = THEME.Error end
+
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 200, 0, 40)
+	toast.Position = UDim2.new(1, 20, 0.82, 0)
+	toast.BackgroundColor3 = THEME.BgCard
+	toast.BorderSizePixel = 0
+	toast.Parent = screenGui
+	Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 5)
+
+	local stroke = Instance.new("UIStroke", toast)
+	stroke.Color = color
+	stroke.Thickness = 1.2
+
+	local t1 = Instance.new("TextLabel", toast)
+	t1.Size = UDim2.new(1, -8, 0, 14)
+	t1.Position = UDim2.new(0, 6, 0, 3)
+	t1.BackgroundTransparency = 1
+	t1.Text = string.upper(titulo)
+	t1.TextColor3 = color
+	t1.Font = Enum.Font.RobotoMono
+	t1.TextSize = 9
+	t1.TextXAlignment = Enum.TextXAlignment.Left
+
+	local t2 = Instance.new("TextLabel", toast)
+	t2.Size = UDim2.new(1, -8, 0, 20)
+	t2.Position = UDim2.new(0, 6, 0, 17)
+	t2.BackgroundTransparency = 1
+	t2.Text = msg
+	t2.TextColor3 = THEME.TextMain
+	t2.Font = Enum.Font.Gotham
+	t2.TextSize = 7
+	t2.TextWrapped = true
+	t2.TextXAlignment = Enum.TextXAlignment.Left
+
+	tween(toast, 0.3, {Position = UDim2.new(1, -215, 0.82, 0)}, Enum.EasingStyle.Back)
+	task.delay(duracion, function()
+		local out = tween(toast, 0.25, {Position = UDim2.new(1, 20, 0.82, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		out.Completed:Connect(function() toast:Destroy() end)
+	end)
+end
+
+local function hover(btn, normal, over)
+	btn.MouseEnter:Connect(function() tween(btn, 0.15, {BackgroundColor3 = over}) end)
+	btn.MouseLeave:Connect(function() tween(btn, 0.15, {BackgroundColor3 = normal}) end)
+end
+
+local btnAbrir = Instance.new("TextButton")
+btnAbrir.Size = UDim2.new(0, 38, 0, 38)
+btnAbrir.Position = UDim2.new(0.02, 0, 0.42, 0)
+btnAbrir.BackgroundColor3 = THEME.BgSidebar
+btnAbrir.Text = "tp"
+btnAbrir.TextColor3 = THEME.Success
+btnAbrir.Font = Enum.Font.RobotoMono
+btnAbrir.TextSize = 10
+btnAbrir.Visible = true
+btnAbrir.Active = true
+btnAbrir.Draggable = true
+btnAbrir.Parent = screenGui
+Instance.new("UICorner", btnAbrir).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", btnAbrir).Color = THEME.Success
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 280, 0, 200)
+mainFrame.Position = UDim2.new(0.5, -140, 0.5, -100)
+mainFrame.BackgroundColor3 = THEME.BgPrimary
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 6)
+Instance.new("UIStroke", mainFrame).Color = THEME.Success
+
+local topBar = Instance.new("Frame", mainFrame)
+topBar.Size = UDim2.new(1, 0, 0, 26)
+topBar.BackgroundTransparency = 1
+
+local titleLabel = Instance.new("TextLabel", topBar)
+titleLabel.Size = UDim2.new(1, -30, 1, 0)
+titleLabel.Position = UDim2.new(0, 8, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ XZ HUB VIP | COMPACTO"
+titleLabel.TextColor3 = THEME.Success
+titleLabel.Font = Enum.Font.RobotoMono
+titleLabel.TextSize = 9
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnCerrar = Instance.new("TextButton", topBar)
+btnCerrar.Size = UDim2.new(0, 18, 0, 18)
+btnCerrar.Position = UDim2.new(1, -22, 0.5, -9)
+btnCerrar.BackgroundColor3 = Color3.fromRGB(35, 18, 30)
+btnCerrar.Text = "✕"
+btnCerrar.TextColor3 = THEME.TextSub
+btnCerrar.Font = Enum.Font.GothamBold
+btnCerrar.TextSize = 9
+Instance.new("UICorner", btnCerrar).CornerRadius = UDim.new(0, 4)
+hover(btnCerrar, Color3.fromRGB(35, 18, 30), THEME.Error)
+
+local footer = Instance.new("Frame", mainFrame)
+footer.Size = UDim2.new(1, -12, 0, 16)
+footer.Position = UDim2.new(0, 6, 1, -18)
+footer.BackgroundColor3 = THEME.BgSidebar
+footer.BorderSizePixel = 0
+Instance.new("UICorner", footer).CornerRadius = UDim.new(0, 4)
+
+local statsLabel = Instance.new("TextLabel", footer)
+statsLabel.Size = UDim2.new(1, -6, 1, 0)
+statsLabel.Position = UDim2.new(0, 3, 0, 0)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "FPS: -- | Ping: -- ms"
+statsLabel.TextColor3 = THEME.Success
+statsLabel.Font = Enum.Font.RobotoMono
+statsLabel.TextSize = 7
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+RunService.RenderStepped:Connect(function(dt)
+	local fps = math.floor(1 / dt)
+	local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+	statsLabel.Text = string.format("FPS: %d | Ping: %d ms | %s", fps, ping, LocalPlayer.DisplayName)
+end)
+
+local contentContainer = Instance.new("ScrollingFrame", mainFrame)
+contentContainer.Size = UDim2.new(1, -12, 1, -50)
+contentContainer.Position = UDim2.new(0, 6, 0, 26)
+contentContainer.BackgroundTransparency = 1
+contentContainer.BorderSizePixel = 0
+contentContainer.ScrollBarThickness = 2
+contentContainer.ScrollBarImageColor3 = THEME.Success
+
+local contentLayout = Instance.new("UIListLayout", contentContainer)
+contentLayout.Padding = UDim.new(0, 4)
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function getRoot()
+	local c = LocalPlayer.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local cacheEtapas = {}
+
+local function obtenerPosicionEtapa(numMundo, numEtapa)
+	local cacheKey = numMundo .. "_" .. numEtapa
+	if cacheEtapas[cacheKey] then return cacheEtapas[cacheKey] end
+
+	local ok, res = pcall(function()
+		local map = Workspace:FindFirstChild("Map") or Workspace
+		local world = map:FindFirstChild("World" .. numMundo) or map:FindFirstChild("World " .. numMundo)
+		if not world then return nil end
+
+		local stages = world:FindFirstChild("Stages")
+		if not stages then return nil end
+
+		local stageObj = stages:FindFirstChild("Stage" .. numEtapa) or stages:FindFirstChild("Stage " .. numEtapa) or stages:FindFirstChild("Stage_" .. numEtapa)
+		if not stageObj then return nil end
+
+		local winObj
+		if numMundo == 1 then
+			winObj = stageObj:FindFirstChild("VipWin") and stageObj.VipWin:FindFirstChild("UI")
+		elseif numMundo == 2 then
+			winObj = stageObj:FindFirstChild("FinalDestination")
+			winObj = winObj and winObj:FindFirstChild("VipWin") and winObj.VipWin:FindFirstChild("UI")
+		elseif numMundo == 3 then
+			winObj = stageObj:FindFirstChild("VipWin") and stageObj.VipWin:FindFirstChild("UI")
+		elseif numMundo == 4 then
+			winObj = stageObj:FindFirstChild("VipWin") and stageObj.VipWin:FindFirstChild("UI")
+		elseif numMundo == 5 then
+			winObj = stageObj:FindFirstChild("StageEnd") and stageObj.StageEnd:FindFirstChild("VipWin") and stageObj.StageEnd.VipWin:FindFirstChild("UI")
+		end
+
+		if not winObj then
+			winObj = stageObj:FindFirstChild("VipWin", true) or stageObj:FindFirstChild("NormalWin", true) or stageObj:FindFirstChild("UI", true) or stageObj
+		end
+
+		if not winObj then return nil end
+		if winObj:IsA("Model") then
+			local p = winObj:FindFirstChildWhichIsA("BasePart", true)
+			return p and p.CFrame or winObj:GetPivot()
+		elseif winObj:IsA("BasePart") then
+			return winObj.CFrame
+		end
+		return nil
+	end)
+
+	if ok and res then
+		local finalPos = res + Vector3.new(0, 3.5, 0)
+		cacheEtapas[cacheKey] = finalPos
+		return finalPos
+	end
+	return nil
+end
+
+local function MoverAEtapa(numMundo, numEtapa)
+	local root = getRoot()
+	if not root then return end
+	local pos = obtenerPosicionEtapa(numMundo, numEtapa)
+	if pos then
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+		root.CFrame = pos
+	end
+end
+
+local mundosData = {}
+
+local function desactivarOtros(excluido)
+	for i = 1, 5 do
+		if i ~= excluido and mundosData[i] and mundosData[i].bucle then
+			mundosData[i].bucle = false
+			mundosData[i].setSwitch(false)
+			mundosData[i].fI.Visible = false
+			if mundosData[i].hilo then
+				task.cancel(mundosData[i].hilo)
+				mundosData[i].hilo = nil
+			end
+		end
+	end
+end
+
+for i = 1, 5 do
+	local maxE = (i == 5) and 9 or 10 -- Mundo 5 con 9 etapas, del 1 al 4 con 10 etapas
+
+	local card = Instance.new("Frame", contentContainer)
+	card.Size = UDim2.new(1, -2, 0, 28)
+	card.BackgroundColor3 = THEME.BgCard
+	card.BorderSizePixel = 0
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 4)
+	Instance.new("UIStroke", card).Color = THEME.Success
+
+	local lbl = Instance.new("TextLabel", card)
+	lbl.Size = UDim2.new(0, 70, 1, 0)
+	lbl.Position = UDim2.new(0, 6, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "Mundo " .. i
+	lbl.TextColor3 = THEME.TextMain
+	lbl.Font = Enum.Font.RobotoMono
+	lbl.TextSize = 8
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	local switchBg = Instance.new("TextButton", card)
+	switchBg.Size = UDim2.new(0, 28, 0, 16)
+	switchBg.Position = UDim2.new(0, 78, 0.5, -8)
+	switchBg.BackgroundColor3 = Color3.fromRGB(24, 15, 32)
+	switchBg.Text = ""
+	switchBg.AutoButtonColor = false
+	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(0, 4)
+	local sStroke = Instance.new("UIStroke", switchBg)
+	sStroke.Color = Color3.fromRGB(70, 30, 90)
+
+	local knob = Instance.new("Frame", switchBg)
+	knob.Size = UDim2.new(0, 10, 0, 10)
+	knob.Position = UDim2.new(0, 3, 0.5, -5)
+	knob.BackgroundColor3 = THEME.Success
+	knob.BorderSizePixel = 0
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 2)
+
+	local fI = Instance.new("Frame", contentContainer)
+	fI.Size = UDim2.new(1, -2, 0, 22)
+	fI.BackgroundColor3 = THEME.BgSidebar
+	fI.BorderSizePixel = 0
+	fI.Visible = false
+	Instance.new("UICorner", fI).CornerRadius = UDim.new(0, 4)
+
+	local lblE = Instance.new("TextLabel", fI)
+	lblE.Size = UDim2.new(0, 90, 1, 0)
+	lblE.Position = UDim2.new(0, 6, 0, 0)
+	lblE.BackgroundTransparency = 1
+	lblE.Text = string.format("Etapa (1-%d):", maxE)
+	lblE.TextColor3 = THEME.TextSub
+	lblE.Font = Enum.Font.RobotoMono
+	lblE.TextSize = 7
+	lblE.TextXAlignment = Enum.TextXAlignment.Left
+
+	local boxE = Instance.new("TextBox", fI)
+	boxE.Size = UDim2.new(0, 30, 0, 14)
+	boxE.Position = UDim2.new(1, -34, 0.5, -7)
+	boxE.BackgroundColor3 = THEME.BgCard
+	boxE.Text = tostring(maxE)
+	boxE.TextColor3 = THEME.Success
+	boxE.Font = Enum.Font.RobotoMono
+	boxE.TextSize = 8
+	boxE.ClearTextOnFocus = false
+	Instance.new("UICorner", boxE).CornerRadius = UDim.new(0, 3)
+	Instance.new("UIStroke", boxE).Color = THEME.Success
+
+	local data = {
+		bucle = false,
+		hilo = nil,
+		setSwitch = function(estado)
+			if estado then
+				tween(switchBg, 0.15, {BackgroundColor3 = THEME.Success})
+				sStroke.Color = THEME.Success
+				knob.BackgroundColor3 = THEME.BgPrimary
+				tween(knob, 0.15, {Position = UDim2.new(1, -13, 0.5, -5)})
+			else
+				tween(switchBg, 0.15, {BackgroundColor3 = Color3.fromRGB(24, 15, 32)})
+				sStroke.Color = Color3.fromRGB(70, 30, 90)
+				knob.BackgroundColor3 = THEME.Success
+				tween(knob, 0.15, {Position = UDim2.new(0, 3, 0.5, -5)})
+			end
+		end,
+		fI = fI
+	}
+	mundosData[i] = data
+
+	boxE:GetPropertyChangedSignal("Text"):Connect(function()
+		boxE.Text = boxE.Text:gsub("[^%d]", "")
+		local val = tonumber(boxE.Text)
+		if val then
+			if val > maxE then boxE.Text = tostring(maxE) end
+			if val < 1 then boxE.Text = "1" end
+			if data.bucle then MoverAEtapa(i, tonumber(boxE.Text) or 1) end
+		end
+	end)
+
+	switchBg.MouseButton1Click:Connect(function()
+		data.bucle = not data.bucle
+		data.setSwitch(data.bucle)
+
+		if data.bucle then
+			desactivarOtros(i)
+			fI.Visible = true
+			local eSel = tonumber(boxE.Text) or 1
+			MoverAEtapa(i, eSel)
+
+			data.hilo = task.spawn(function()
+				while data.bucle do
+					MoverAEtapa(i, tonumber(boxE.Text) or 1)
+					RunService.Heartbeat:Wait()
+				end
+			end)
+			notificar("M" .. i, "Activado (0 delay)", "success", 2)
+		else
+			fI.Visible = false
+			if data.hilo then task.cancel(data.hilo); data.hilo = nil end
+			notificar("M" .. i, "Desactivado", "warning", 2)
+		end
+	end)
+end
+
+contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	contentContainer.CanvasSize = UDim2.new(0, 0, 0, contentLayout.AbsoluteContentSize.Y + 4)
+end)
+
+local function togglePanel()
+	panelAbierto = not panelAbierto
+	if panelAbierto then
+		mainFrame.Visible = true
+		mainFrame.Size = UDim2.new(0, 0, 0, 0)
+		mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		tween(mainFrame, 0.3, {Size = UDim2.new(0, 280, 0, 200), Position = UDim2.new(0.5, -140, 0.5, -100)}, Enum.EasingStyle.Back)
+	else
+		local a = tween(mainFrame, 0.2, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		a.Completed:Connect(function() if not panelAbierto then mainFrame.Visible = false end end)
+	end
+end
+
+btnAbrir.MouseButton1Click:Connect(togglePanel)
+btnCerrar.MouseButton1Click:Connect(togglePanel)
+togglePanel()
+
